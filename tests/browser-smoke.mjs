@@ -20,7 +20,7 @@ try{
     const page=await context.newPage(),jsErrors=[];
     page.on('pageerror',e=>jsErrors.push(e.message));
     await page.goto(base+'/'+slug+'/',{waitUntil:'load'});
-    await page.waitForFunction(()=>!!window.ChanceLocal && !!document.querySelector('.cloud-panel'),{timeout:8000});
+    await page.waitForFunction(()=>!!window.ChanceLocal && !!document.querySelector('.cloud-panel'),null,{timeout:8000});
     assert.equal(await page.locator('#metric-count').innerText(),'0',slug+' begins empty');
     assert.equal(await page.locator('.cloud-panel').count(),1,slug+' has Cloud panel');
     assert.equal(await page.locator('#cloud-guest').isVisible(),true,slug+' login form visible');
@@ -39,7 +39,8 @@ try{
         if(key==='due')value='2020-01-01';
         if(key==='status')value='已驗收';
       }
-      await page.locator('#field-'+key).fill(value);
+      if(kind==='select') await page.locator('#field-'+key).selectOption(value);
+      else await page.locator('#field-'+key).fill(value);
     }
     await page.locator('#record-form button[type=submit]').click();
     assert.equal(await page.locator('#metric-count').innerText(),'1',slug+' creates row');
