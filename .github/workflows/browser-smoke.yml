@@ -1,0 +1,30 @@
+name: 真實瀏覽器驗收十個產品
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'assets/**'
+      - '*/index.html'
+      - 'tests/browser-smoke.mjs'
+      - '.github/workflows/browser-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: chance-browser-smoke
+  cancel-in-progress: true
+jobs:
+  browser-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Playwright browser runner
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.64.1
+          npx playwright install chromium --with-deps
+      - name: Run all 10 browser E2E smoke tests
+        run: node tests/browser-smoke.mjs
