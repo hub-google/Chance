@@ -59,8 +59,52 @@ q('record-form').addEventListener('submit',e=>{e.preventDefault();const raw=Obje
 q('records').addEventListener('click',e=>{const btn=e.target.closest('button[data-action]');if(!btn)return;if(btn.dataset.action==='edit')openEditor(btn.dataset.id);else if(confirm('確定刪除這筆資料？刪除後需使用備份才能復原。')){rows=rows.filter(r=>r._id!==btn.dataset.id);persist();recalc()}});
 q('add').addEventListener('click',()=>openEditor(null));q('cancel').addEventListener('click',()=>q('dialog').close());q('search').addEventListener('input',e=>{term=e.target.value.trim().toLowerCase();recalc()});
 function download(filename,str,type){const url=URL.createObjectURL(new Blob([str],{type}));const a=document.createElement('a');a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000)}
-function csvCell(v){const s=flat(v);return '"'+s.replace(/"/g,'""')+'"'}
+function csvCell(v){const source=flat(v);const safe=/^\\s*[=+@-]/.test(source)?"'"+source:source;return '"'+safe.replace(/"/g,'""')+'"'}
 q('export-csv').addEventListener('click',()=>{const header=[...C.fields.map(f=>f[1]),'計算結果','狀態'];const data=rows.map(r=>{const calc=compute(r,rows);return[...C.fields.map(f=>r[f[0]]),calc.detail,calc.label]});download(C.slug+'-'+today()+'.csv','\ufeff'+[header,...data].map(arr=>arr.map(csvCell).join(',')).join('\r\n'),'text/csv;charset=utf-8');});
+
+function parseCSV(raw){
+ const input=raw.replace(/^\uFEFF/,'');let out=[],row=[],field='',quoted=false;
+ for(let i=0;i<input.length;i++){
+  const ch=input[i];
+  if(ch==='"'){if(quoted&&input[i+1]==='"'){field+='"';i++}else quoted=!quoted}
+  else if(ch===','&&!quoted){row.push(field);field=''}
+  else if((ch==='\r'||ch==='\n')&&!quoted){
+   if(ch==='\r'&&input[i+1]==='\n')i++;
+   row.push(field);if(row.some(v=>v.trim()!==''))out.push(row);
+   row=[];field='';
+  }else field+=ch;
+ }
+ if(quoted)throw Error('CSV 格式錯誤：引號尚未結束');
+ row.push(field);if(row.some(v=>v.trim()!==''))out.push(row);
+ return out;
+}
+const csvControl=document.createElement('input');csvControl.type='file';csvControl.id='csv-import';csvControl.accept='.csv,text/csv';csvControl.hidden=true;
+const csvLabel=text('label','匯入 CSV','btn');csvLabel.htmlFor='csv-import';
+const tools=q('export-csv').parentNode;tools.insertBefore(csvLabel,q('export-csv'));tools.insertBefore(csvControl,q('export-csv'));
+csvControl.addEventListener('change',async event=>{
+ const file=event.target.files?.[0];if(!file)return;
+ try{
+  if(file.size>5*1024*1024)throw Error('CSV 檔案超過 5MB 上限');
+  const parsed=parseCSV(await file.text());
+  if(parsed.length<2)throw Error('CSV 需要標題列與至少一筆紀錄');
+  const head=parsed.shift().map(v=>v.trim());
+  const indices=C.fields.map(f=>head.includes(f[0])?head.indexOf(f[0]):head.indexOf(f[1]));
+  if(indices.some(v=>v<0))throw Error('CSV 缺少必要欄位：'+C.fields.filter((f,i)=>indices[i]<0).map(f=>f[1]).join('、'));
+  const imported=parsed.map((record,i)=>{
+    const data={};C.fields.forEach((f,j)=>data[f[0]]=record[indices[j]]??'');
+    const cleaned=clean(data);
+    if(!cleaned[C.fields[0][0]])throw Error('第 '+(i+2)+' 列的第一欄不得空白');
+    return {_id:crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random(),_updated:new Date().toISOString(),...cleaned};
+  });
+  if(rows.length+imported.length>5000)throw Error('超過總共 5,000 筆的限制，請拆分資料或先匯出備份');
+  if(!confirm('即將追加 '+imported.length+' 筆紀錄（不刪除原本 '+rows.length+' 筆）。確定匯入？'))return;
+  const original=rows;rows=[...imported.reverse(),...rows];
+  if(!persist()){rows=original;recalc();return}
+  recalc();toast('成功匯入 '+imported.length+' 筆資料');
+ }catch(error){toast('CSV 匯入失敗：'+error.message)}
+ finally{event.target.value=''}
+});
+
 q('backup').addEventListener('click',()=>download(C.slug+'-backup-'+today()+'.json',JSON.stringify({schema:1,app:C.slug,exportedAt:new Date().toISOString(),records:rows},null,2),'application/json'));
 q('restore').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;try{if(file.size>5e6)throw Error('檔案太大');const obj=JSON.parse(await file.text());if(obj.app!==C.slug||!Array.isArray(obj.records)||obj.records.length>5000)throw Error('備份格式或產品不符');if(!confirm('匯入將取代本產品目前的 '+rows.length+' 筆紀錄，確定嗎？'))return;rows=obj.records.map((x,i)=>({...clean(x),_id:flat(x._id||i),_updated:flat(x._updated||new Date().toISOString())}));persist();recalc();toast('已還原 '+rows.length+' 筆紀錄')}catch(err){toast('匯入失敗：'+err.message)}finally{e.target.value=''}});
 q('print').addEventListener('click',()=>window.print());
