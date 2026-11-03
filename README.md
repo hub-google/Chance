@@ -2,7 +2,7 @@
 
 從「商業機會（每日爬取）」285筆研究選出的十個 Web MVP。每個產品是自己的資料夾，內含 `index.html` 與 `PRD.md`。
 
-**總入口**：https://hub-google.github.io/Chance/ （須先啟用 GitHub Pages 並完成部署）
+**正式總入口（已部署）**：https://hub-google.github.io/Chance/
 
 | 商機編號 | 產品 | 網站 | PRD |
 | --- | --- | --- | --- |
@@ -19,7 +19,7 @@
 
 ## 功能
 
-十個工具均已具備實際新增、修改、刪除、搜尋、計算、CSV 匯出、JSON 備份與還原、列印／PDF。資料儲存在使用者瀏覽器本機，**尚無後端登入、多人協作、跨裝置同步與正式收費系統**。所有定價皆屬待驗證的市場假設。
+十個工具均已具備實際新增、修改、刪除、搜尋、計算、CSV 匯出、JSON 備份與還原、列印／PDF。預設資料儲存在使用者瀏覽器本機；現已增加可選的 Supabase 登入、明確操作的個人雲端備份與付費試用意願登記。**尚無自動跨裝置同步、多人協作或正式金流扣款**。所有定價皆屬待驗證的市場假設。
 
 ## 部署
 
@@ -32,3 +32,11 @@
 ## 來源
 
 [Google Sheet 商機來源](https://docs.google.com/spreadsheets/d/103uxu5VmnDj7WBrByD9vjpLgauy8-M6uZXqDSnWk7tI/edit?gid=1377271577)，採用研究資料但不代表已獲市場付費驗證。請參閱各 PRD。
+
+## 雲端功能
+
+- Supabase project `unapiwajmgqqtdkixaab` 新增 `public.chance_documents`、`public.chance_trial_requests`；RLS 僅允許資料擁有人操作。
+- 每個 App 的雲端面板自動由 `assets/engine.js` 載入 `assets/cloud.js`。
+- 使用者須主動確認雲端上傳／下載，本機資料不會因為登入而消失。
+- Email OTP 郵件模板及 Auth 寄信配額需在 Supabase 管理端配置與驗證。未建立正式扣款系統。
+- 請勿將 Supabase secret/service-role key 寫入網站前端。`assets/cloud.js` 使用可公開的 publishable key，所有資料存取依賴伺服器 RLS。
