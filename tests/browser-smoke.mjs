@@ -57,6 +57,14 @@ try{
     page.once('dialog',d=>d.accept());
     await page.locator('#records button[data-action=delete]').click();
     assert.equal(await page.locator('#metric-count').innerText(),'0',slug+' deletes row');
+    if(slug==='invoice-proof'){
+      page.once('dialog',d=>d.accept());
+      await page.locator('#csv-import').setInputFiles({name:'chance-test.csv',mimeType:'text/csv',buffer:Buffer.from('project,client,amount,paid,due,status\\n測試CSV專案,測試CSV客戶,5000,1000,2030-01-01,已驗收','utf8')});
+      await page.waitForFunction(()=>document.querySelector('#metric-count')?.textContent==='1',null,{timeout:5000});
+      assert.ok((await page.locator('#metric-primary').innerText()).includes('4,000'),'CSV import recomputes uncollected amount');
+      assert.ok((await page.locator('#records').innerText()).includes('測試CSV專案'),'CSV imported record visible');
+      console.log('PASS invoice-proof CSV import and calculation');
+    }
     assert.deepEqual(jsErrors,[],slug+' JS runtime errors');
     await page.close();
     tested++;
