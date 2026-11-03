@@ -65,5 +65,18 @@ q('backup').addEventListener('click',()=>download(C.slug+'-backup-'+today()+'.js
 q('restore').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;try{if(file.size>5e6)throw Error('檔案太大');const obj=JSON.parse(await file.text());if(obj.app!==C.slug||!Array.isArray(obj.records)||obj.records.length>5000)throw Error('備份格式或產品不符');if(!confirm('匯入將取代本產品目前的 '+rows.length+' 筆紀錄，確定嗎？'))return;rows=obj.records.map((x,i)=>({...clean(x),_id:flat(x._id||i),_updated:flat(x._updated||new Date().toISOString())}));persist();recalc();toast('已還原 '+rows.length+' 筆紀錄')}catch(err){toast('匯入失敗：'+err.message)}finally{e.target.value=''}});
 q('print').addEventListener('click',()=>window.print());
 q('app-title').textContent=C.name;document.title=C.name+'｜Chance';q('app-lead').textContent=C.pain;q('app-source').textContent='來源編號 '+C.id+'｜建議售價 '+C.price+'，並非實際收費';q('app-description').textContent=C.scope;
+window.ChanceLocal=Object.freeze({
+  slug:C.slug,
+  read:()=>JSON.parse(JSON.stringify(rows)),
+  count:()=>rows.length,
+  replace:incoming=>{
+    if(!Array.isArray(incoming)||incoming.length>5000)return false;
+    const updated=incoming.map((x,i)=>({...clean(x),_id:flat(x._id||('import-'+i)).slice(0,150),_updated:flat(x._updated||new Date().toISOString()).slice(0,60)}));
+    const prior=rows;rows=updated;
+    if(!persist()){rows=prior;return false}
+    recalc();return true;
+  }
+});
+const cloudScript=document.createElement('script');cloudScript.src='../assets/cloud.js';cloudScript.defer=true;document.head.append(cloudScript);
 recalc();
 })();
