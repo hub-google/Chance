@@ -59,7 +59,7 @@ q('record-form').addEventListener('submit',e=>{e.preventDefault();const raw=Obje
 q('records').addEventListener('click',e=>{const btn=e.target.closest('button[data-action]');if(!btn)return;if(btn.dataset.action==='edit')openEditor(btn.dataset.id);else if(confirm('確定刪除這筆資料？刪除後需使用備份才能復原。')){rows=rows.filter(r=>r._id!==btn.dataset.id);persist();recalc()}});
 q('add').addEventListener('click',()=>openEditor(null));q('cancel').addEventListener('click',()=>q('dialog').close());q('search').addEventListener('input',e=>{term=e.target.value.trim().toLowerCase();recalc()});
 function download(filename,str,type){const url=URL.createObjectURL(new Blob([str],{type}));const a=document.createElement('a');a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000)}
-function csvCell(v){const source=flat(v);const safe=/^\\s*[=+@-]/.test(source)?"'"+source:source;return '"'+safe.replace(/"/g,'""')+'"'}
+function csvCell(v){const source=flat(v);const safe=/^\s*[=+@-]/.test(source)?"'"+source:source;return '"'+safe.replace(/"/g,'""')+'"'}
 q('export-csv').addEventListener('click',()=>{const header=[...C.fields.map(f=>f[1]),'計算結果','狀態'];const data=rows.map(r=>{const calc=compute(r,rows);return[...C.fields.map(f=>r[f[0]]),calc.detail,calc.label]});download(C.slug+'-'+today()+'.csv','\ufeff'+[header,...data].map(arr=>arr.map(csvCell).join(',')).join('\r\n'),'text/csv;charset=utf-8');});
 
 function parseCSV(raw){
