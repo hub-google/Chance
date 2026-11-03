@@ -68,3 +68,14 @@ test('CSV export uses BOM and CRLF escapes for spreadsheet compatibility',()=>{
  assert.ok(engine.includes(String.raw`'\ufeff'`));
  assert.ok(engine.includes(String.raw`'\r\n'`));
 });
+
+test('optional cloud panel JavaScript parses and uses only publishable key',()=>{
+ const cloud=fs.readFileSync(path.join(root,'assets/cloud.js'),'utf8');
+ new vm.Script(cloud);
+ assert.match(cloud,/chance_documents/);
+ assert.match(cloud,/chance_trial_requests/);
+ assert.match(cloud,/sb_publishable_/);
+ assert.doesNotMatch(cloud,/service_role|sb_secret_/);
+ assert.match(cloud,/上傳本機/);
+ assert.match(cloud,/本機/);
+});
