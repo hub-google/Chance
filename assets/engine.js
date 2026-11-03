@@ -4,7 +4,7 @@ const C=window.CHANCE_APP;
 if(!C){document.body.textContent='Configuration missing';return;}
 const q=id=>document.getElementById(id),nf=new Intl.NumberFormat('zh-TW',{maximumFractionDigits:2}),today=()=>new Date().toISOString().slice(0,10);
 const num=(r,k)=>{const v=Number(r[k]);return Number.isFinite(v)?v:0},money=n=>'NT$ '+nf.format(Math.round(n)),digits=n=>nf.format(Math.round(n*100)/100);
-const days=date=>{if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(date||''))return NaN;const t=new Date(date+'T12:00:00');const now=new Date();now.setHours(12,0,0,0);return Math.round((t-now)/86400000)};
+const days=date=>{if(!/^\d{4}-\d{2}-\d{2}$/.test(date||''))return NaN;const t=new Date(date+'T12:00:00');const now=new Date();now.setHours(12,0,0,0);return Math.round((t-now)/86400000)};
 const addDays=(d,n)=>{const v=new Date(d+'T12:00:00');if(!Number.isFinite(v.getTime()))return '';v.setDate(v.getDate()+n);return v.getFullYear()+'-'+String(v.getMonth()+1).padStart(2,'0')+'-'+String(v.getDate()).padStart(2,'0')};
 const flat=(v)=>String(v??''),text=(tag,content,cls)=>{const el=document.createElement(tag);el.textContent=flat(content);if(cls)el.className=cls;return el};
 const fieldOf=k=>C.fields.find(f=>f[0]===k);
@@ -52,7 +52,7 @@ function openEditor(id){const r=rows.find(v=>v._id===id)||{};activeId=id||null;q
  control.id='field-'+k;control.name=k;control.required=true;control.value=r[k]??(kind==='number'?'0':kind==='select'?(options||'').split('|')[0]:'');wrap.append(control);body.append(wrap)});
  q('dialog').showModal();const first=body.querySelector('input,select');if(first)first.focus();
 }
-function clean(raw){const out={};C.fields.forEach(([k,,kind,opts])=>{let v=raw[k];if(kind==='number'){v=Number(v);v=Number.isFinite(v)?Math.max(0,Math.min(v,1e12)):0}else if(kind==='select'){v=(opts||'').split('|').includes(v)?v:(opts||'').split('|')[0]}else if(kind==='date'){v=/^\\d{4}-\\d{2}-\\d{2}$/.test(v||'')?v:''}else{v=flat(v).trim().slice(0,140)}out[k]=v});return out}
+function clean(raw){const out={};C.fields.forEach(([k,,kind,opts])=>{let v=raw[k];if(kind==='number'){v=Number(v);v=Number.isFinite(v)?Math.max(0,Math.min(v,1e12)):0}else if(kind==='select'){v=(opts||'').split('|').includes(v)?v:(opts||'').split('|')[0]}else if(kind==='date'){v=/^\d{4}-\d{2}-\d{2}$/.test(v||'')?v:''}else{v=flat(v).trim().slice(0,140)}out[k]=v});return out}
 q('record-form').addEventListener('submit',e=>{e.preventDefault();const raw=Object.fromEntries(new FormData(e.target).entries());const cleaned=clean(raw);if(!cleaned[C.fields[0][0]]){toast('請填寫第一欄');return}
  if(activeId){const i=rows.findIndex(r=>r._id===activeId);if(i>=0)rows[i]={...rows[i],...cleaned,_updated:new Date().toISOString()}}else{rows.unshift({_id:(globalThis.crypto&&crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random()),_updated:new Date().toISOString(),...cleaned})}
  persist();q('dialog').close();recalc();toast('已儲存');});
@@ -60,7 +60,7 @@ q('records').addEventListener('click',e=>{const btn=e.target.closest('button[dat
 q('add').addEventListener('click',()=>openEditor(null));q('cancel').addEventListener('click',()=>q('dialog').close());q('search').addEventListener('input',e=>{term=e.target.value.trim().toLowerCase();recalc()});
 function download(filename,str,type){const url=URL.createObjectURL(new Blob([str],{type}));const a=document.createElement('a');a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000)}
 function csvCell(v){const s=flat(v);return '"'+s.replace(/"/g,'""')+'"'}
-q('export-csv').addEventListener('click',()=>{const header=[...C.fields.map(f=>f[1]),'計算結果','狀態'];const data=rows.map(r=>{const calc=compute(r,rows);return[...C.fields.map(f=>r[f[0]]),calc.detail,calc.label]});download(C.slug+'-'+today()+'.csv','\\ufeff'+[header,...data].map(arr=>arr.map(csvCell).join(',')).join('\\r\\n'),'text/csv;charset=utf-8');});
+q('export-csv').addEventListener('click',()=>{const header=[...C.fields.map(f=>f[1]),'計算結果','狀態'];const data=rows.map(r=>{const calc=compute(r,rows);return[...C.fields.map(f=>r[f[0]]),calc.detail,calc.label]});download(C.slug+'-'+today()+'.csv','\ufeff'+[header,...data].map(arr=>arr.map(csvCell).join(',')).join('\r\n'),'text/csv;charset=utf-8');});
 q('backup').addEventListener('click',()=>download(C.slug+'-backup-'+today()+'.json',JSON.stringify({schema:1,app:C.slug,exportedAt:new Date().toISOString(),records:rows},null,2),'application/json'));
 q('restore').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;try{if(file.size>5e6)throw Error('檔案太大');const obj=JSON.parse(await file.text());if(obj.app!==C.slug||!Array.isArray(obj.records)||obj.records.length>5000)throw Error('備份格式或產品不符');if(!confirm('匯入將取代本產品目前的 '+rows.length+' 筆紀錄，確定嗎？'))return;rows=obj.records.map((x,i)=>({...clean(x),_id:flat(x._id||i),_updated:flat(x._updated||new Date().toISOString())}));persist();recalc();toast('已還原 '+rows.length+' 筆紀錄')}catch(err){toast('匯入失敗：'+err.message)}finally{e.target.value=''}});
 q('print').addEventListener('click',()=>window.print());
