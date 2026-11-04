@@ -20,10 +20,11 @@ try{
     const page=await context.newPage(),jsErrors=[];
     page.on('pageerror',e=>jsErrors.push(e.message));
     await page.goto(base+'/'+slug+'/',{waitUntil:'load'});
-    await page.waitForFunction(()=>!!window.ChanceLocal && !!document.querySelector('.cloud-panel') && !!document.querySelector('.chance-analysis') && !!document.querySelector('.chance-reminders'),null,{timeout:9000});
+    await page.waitForFunction(()=>!!window.ChanceLocal && !!document.querySelector('.chance-analysis') && !!document.querySelector('.chance-reminders'),null,{timeout:9000});
     assert.equal(await page.locator('#metric-count').innerText(),'0',slug+' begins empty');
-    assert.equal(await page.locator('.cloud-panel').count(),1,slug+' has Cloud panel');
-    assert.equal(await page.locator('#cloud-guest').isVisible(),true,slug+' login form visible');
+    assert.equal(await page.locator('.cloud-panel').count(),0,slug+' preview has no login panel');
+    assert.equal(await page.locator('#cloud-guest').count(),0,slug+' preview has no login form');
+    if(slug==='custom-order-payments')assert.equal(await page.locator('.chance-order-confirmations').count(),0,'guest mode excludes authenticated confirmation links');
     await page.click('#add');
     const fields=await page.evaluate(()=>window.CHANCE_APP.fields);
     for(const [key,,kind,options] of fields){
@@ -178,7 +179,7 @@ try{
     assert.deepEqual(jsErrors,[],slug+' JS runtime errors');
     await page.close();
     tested++;
-    console.log('PASS',slug,'create / calculate / persist / edit / delete / cloud panel');
+    console.log('PASS',slug,'guest mode / create / calculate / persist / edit / delete');
   }
   await context.close();
 }finally{

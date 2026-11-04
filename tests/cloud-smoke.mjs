@@ -88,7 +88,7 @@ try{
    throw Error('Unexpected external request '+method+' '+u.pathname);
  });
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.goto(root+'/invoice-proof/',{waitUntil:'load'});
+ await page.goto(root+'/invoice-proof/?member=1',{waitUntil:'load'});
  await page.waitForFunction(()=>!!document.querySelector('#cloud-user')&&!document.querySelector('#cloud-user').hidden,null,{timeout:10000});
  assert.ok((await page.locator('#chance-entitlement-status').innerText()).includes('未建立付費訂閱'));
  assert.ok(await page.locator('#chance-support-submit').isVisible());

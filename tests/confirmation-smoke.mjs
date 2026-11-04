@@ -51,7 +51,7 @@ try{
   localStorage.setItem('chance.auth.v1',JSON.stringify({access_token:'synthetic-jwt',refresh_token:'synthetic-refresh',user_id:userId,email:'synthetic@example.invalid',expires_at:Math.floor(Date.now()/1000)+3600}));
   localStorage.setItem('chance-products:custom-order-payments:v1',JSON.stringify([row]));
  },{userId,row});
- await owner.goto(base+'/custom-order-payments/',{waitUntil:'load'});
+ await owner.goto(base+'/custom-order-payments/?member=1',{waitUntil:'load'});
  await owner.waitForFunction(()=>!!window.ChanceLocal&&!!window.ChanceCloudSession&&!!document.querySelector('.chance-order-confirmations'));
  await owner.locator('#chance-confirm-specs').fill('材質為實木，尺寸120×80公分，桌面自然色，交期請依合約');
  owner.once('dialog',d=>d.accept());
