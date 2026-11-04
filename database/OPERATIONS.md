@@ -16,6 +16,7 @@
 | `chance_entitlements` | 使用者方案、授權及有效期限 | 只能讀本人；不能由瀏覽器更改 |
 | `chance_admins` | 核實過的管理員名單 | 本人可查自己的權限；只有受保護後端可授權 |
 | `chance_evidence_files` | PDF／JPG／PNG 附件索引 | 僅所有者讀、上傳索引、刪除 |
+| `chance_order_confirmations` | 訂製品規格確認邀請、期限與回覆 | 店家只讀自己的邀請；匿名不可直接讀表；限權杖 RPC 查看單筆及一次回覆 |
 | Storage `chance-evidence` | 5 MiB 上限的私人證據檔 | 私人 bucket，路徑 `auth.uid()/app_slug/record_id/object.ext` |
 
 資料庫與 Storage RLS 都已啟用。不可在客戶端使用 service-role 或 secret key。
@@ -60,3 +61,12 @@ set role=excluded.role, active=excluded.active;
 - 定期執行 `tests/verify.test.mjs`、`tests/browser-smoke.mjs`、`tests/cloud-smoke.mjs`、`tests/admin-smoke.mjs`。
 
 **不更動其他專案的資料表或資料。所有前端商品定價均為待市場驗證的假設。**
+
+## 2026-11-04 訂製品客戶專屬確認連結
+
+- SQL 版本：`database/order-confirmations.sql`；已套用至原有 `unapiwajmgqqtdkixaab`，且僅新增 Chance 專用表及函數。
+- 店家使用原有 Auth 登入後，在 `/Chance/custom-order-payments/` 的「客戶規格確認專屬連結」區建立 7 天邀請。客戶不用登入，透過 `/Chance/confirm/#<token>` 開啟並回覆；店家自行傳送，不會自動寄 Email／LINE。
+- token 是伺服器產生的 24-byte 安全隨機數，儲存庫與資料庫都不保存原文，只保存雜湊；可被轉傳，故不能宣稱已驗證客戶本人身分。過期／撤銷連結無法再取得規格快照，回覆只能成功一次。
+- `chance_order_confirmations` 已開啟 RLS，匿名角色無直接 SELECT 權限，已驗證 `chance_create_order_confirmation` 不開給 anon。允許匿名呼叫的 `chance_order_confirmation_preview` 和 `chance_order_confirmation_reply` 是刻意提供單一高熵權杖查詢／一次性回覆的 RPC。
+- **安全提醒**：Supabase Advisor 會警告匿名角色可呼叫 `SECURITY DEFINER` 函數；目前已檢查權杖長度、摘要比對、到期、撤銷、單次使用及輸入限制，但**未完成**正式限流、壓力測試、第三方滲透測試、真人雙帳號隔離測試。不得將安全警告標為已排除。詳見 [Advisors 說明](https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0028_anon_security_definer_function_executable)。
+- 測試：`tests/confirmation-smoke.mjs` 是 Chromium 搭配**模擬** REST 的功能測試，不是正式客戶端到端驗收；資料庫另用只讀 SQL 驗證新資料表 RLS 與角色權限。
