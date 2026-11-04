@@ -129,6 +129,7 @@ try{
       await page.locator('#chance-dispatch-form button[type=submit]').click();
       assert.equal(await page.locator('#chance-signoff-save').isEnabled(),true,'completed job can be signed onsite');
       await page.locator('#chance-signoff-name').fill('現場測試簽收人');
+      await page.locator('#chance-signoff-canvas').scrollIntoViewIfNeeded();
       const rect=await page.locator('#chance-signoff-canvas').boundingBox();
       assert.ok(rect,'onsite signature canvas exists');
       await page.mouse.move(rect.x+40,rect.y+70);
@@ -139,6 +140,7 @@ try{
       await page.locator('#chance-signoff-ack').check();
       await page.locator('#chance-signoff-save').click();
       let signed=await page.evaluate(()=>window.ChanceLocal.read()[0]._workOrders[0].signoff);
+      if(!signed)throw Error('Signoff submission did not persist: '+(await page.locator('#chance-signoff-feedback').innerText())+'; state='+(await page.locator('#chance-signoff-state').innerText()));
       assert.equal(signed.signer,'現場測試簽收人','signer recorded');
       assert.equal(signed.acknowledged,true,'acknowledgment recorded');
       assert.ok(signed.strokes[0].length>=2,'handwritten pointer strokes preserved');
