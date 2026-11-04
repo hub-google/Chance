@@ -71,6 +71,32 @@ test('CSV export uses BOM and CRLF escapes for spreadsheet compatibility',()=>{
  assert.ok(engine.includes(String.raw`'\r\n'`));
 });
 
+test('strict PRD imports reject corrupt dates and numerical values',()=>{
+ const dateSource=engine.slice(engine.indexOf('const validDate='),engine.indexOf('const days='));
+ const validDate=new Function(dateSource+'return validDate;')();
+ assert.equal(validDate('2028-02-29'),true);
+ assert.equal(validDate('2027-02-29'),false);
+ assert.equal(validDate('2026-04-31'),false);
+ assert.equal(validDate('2026-11-04'),true);
+ const validateSource=engine.slice(engine.indexOf('function validateImport('),engine.indexOf("q('record-form').addEventListener"));
+ const fields=[['project','專案','text'],['amount','應收','number'],['due','期限','date'],['status','狀態','select','待驗收|已驗收'],['memo','備註','text',null,{optional:true}]];
+ const validate=new Function('C','flat','validDate',validateSource+'return validateImport;')({fields},v=>String(v??''),validDate);
+ const good={project:'測試',amount:'1200',due:'2028-02-29',status:'待驗收'};
+ assert.doesNotThrow(()=>validate(good,2));
+ assert.throws(()=>validate({...good,amount:'N/A'},3),/第 3 列數值不正確/);
+ assert.throws(()=>validate({...good,amount:'-1'},3),/數值不正確/);
+ assert.throws(()=>validate({...good,due:'2027-02-29'},4),/日期不正確/);
+ assert.throws(()=>validate({...good,status:'隨意'},5),/選項不正確/);
+ assert.throws(()=>validate({...good,project:''},6),/缺少必要欄位/);
+ assert.doesNotThrow(()=>validate({...good,memo:''},2));
+});
+
+test('storage quota failures cannot be displayed as successful edits or deletions',()=>{
+ assert.match(engine,/if\(!persist\(\)\)\{rows=previous;recalc\(\);return\}/);
+ assert.match(engine,/if\(!persist\(\)\)rows=previous/);
+ assert.match(engine,/new Set\(imported\.map\(r=>r\._id\)\)/);
+});
+
 test('optional cloud panel JavaScript parses and uses only publishable key',()=>{
  const cloud=fs.readFileSync(path.join(root,'assets/cloud.js'),'utf8');
  new vm.Script(cloud);
