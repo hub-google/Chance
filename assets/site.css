@@ -52,3 +52,16 @@ dialog{border:1px solid var(--line);border-radius:18px;padding:0;box-shadow:0 22
  #chance-report header,#chance-report footer {display:block !important}
  #chance-report .note {color:#555 !important}
 }
+
+/* Private in-app support ticket history and lightweight activity log. */
+.chance-support{margin-top:16px}
+.chance-support .field{margin:12px 0;max-width:760px}
+.chance-support .field label{display:block;font-weight:700;font-size:13px;margin-bottom:4px}
+.chance-support input,.chance-support textarea{width:100%;border:1px solid #cad5e4;border-radius:8px;font:inherit;padding:9px 10px;background:white;color:var(--ink)}
+.chance-support textarea{resize:vertical;line-height:1.5;min-height:85px}
+.chance-support-list{margin:12px 0 18px;max-height:450px;overflow:auto}
+.chance-support-list ul{padding-left:20px}
+.chance-support-list li{margin:8px 0;font-size:13px}
+.chance-support-ticket{border:1px solid var(--line);border-radius:10px;padding:14px;margin:8px 0;background:white}
+.chance-support-ticket .pill{margin-left:10px}
+.chance-support-ticket blockquote{margin:10px 0 0;padding:10px 14px;border-left:3px solid #3f71cf;background:#f4f7fd;font-size:14px}
