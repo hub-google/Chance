@@ -71,6 +71,36 @@ function openEditor(id){const r=rows.find(v=>v._id===id)||{};activeId=id||null;q
 function clean(raw){const out={};C.fields.forEach(([k,,kind,opts])=>{let v=raw[k];if(kind==='number'){v=Number(v);v=Number.isFinite(v)?Math.max(0,Math.min(v,1e12)):0}else if(kind==='select'){v=(opts||'').split('|').includes(v)?v:(opts||'').split('|')[0]}else if(kind==='date'){v=validDate(v)?v:''}else{v=flat(v).trim().slice(0,140)}out[k]=v});return out}
 // Structured PRD data is retained by both JSON backup and cloud document restore.
 const finiteAmount=v=>{const n=Number(v);return Number.isFinite(n)&&n>=0&&n<=1e12?n:0};
+function validatedSignoff(v){
+ if(v===null||v===undefined)return null;
+ if(!v||typeof v!=='object'||Array.isArray(v))throw Error('簽收資料格式錯誤');
+ const signer=flat(v.signer).trim(),signedAt=flat(v.signedAt).trim();
+ if(signer.length<1||signer.length>80||signedAt.length>35||!Number.isFinite(Date.parse(signedAt))||v.acknowledged!==true)throw Error('簽收人、時間或確認狀態不正確');
+ const original=v.strokes;
+ if(!Array.isArray(original)||original.length<1||original.length>15)throw Error('簽收筆跡無效或太多筆畫');
+ let points=0;
+ const strokes=original.map(stroke=>{
+  if(!Array.isArray(stroke)||!stroke.length||stroke.length>900)throw Error('簽收筆跡格式不正確');
+  return stroke.map(p=>{
+   if(!Array.isArray(p)||p.length!==2||p.some(n=>!Number.isInteger(n)||n<0||n>1000))throw Error('簽收座標不正確');
+   points++;return [p[0],p[1]];
+  });
+ });
+ if(points>900)throw Error('簽收筆跡超過容量上限');
+ const raw=v.snapshot;
+ if(!raw||typeof raw!=='object'||Array.isArray(raw))throw Error('簽收工作內容快照不存在');
+ const snapshot={};
+ for(const k of ['site','device','filter','batch','scheduled','note']){
+  const value=flat(raw[k]||'');
+  if(value.length>160)throw Error('簽收工作內容過長');
+  snapshot[k]=value;
+ }
+ if(!validDate(snapshot.scheduled))throw Error('簽收派工日期不正確');
+ if(!Array.isArray(raw.assignees)||raw.assignees.length<1||raw.assignees.length>10)throw Error('簽收技師名單不正確');
+ snapshot.assignees=raw.assignees.map(n=>flat(n).trim().slice(0,40));
+ if(snapshot.assignees.some(n=>!n))throw Error('簽收技師名單不正確');
+ return {signer,signedAt,acknowledged:true,strokes,snapshot};
+}
 function structuredExtras(x){
  if(C.kind==='orders'&&x._payments!==undefined){
   if(!Array.isArray(x._payments)||x._payments.length>200)throw Error('分期明細格式或筆數不正確');
@@ -90,7 +120,7 @@ function structuredExtras(x){
    if(assignees.some(n=>!n||n.length>40)||new Set(assignees).size!==assignees.length)throw Error('第 '+(i+1)+' 筆技師名稱有重複或異常');
    if(flat(job.note||'').length>160)throw Error('第 '+(i+1)+' 筆派工備註超長');
    return {id,scheduled:date,assignees,status:job.status,note:flat(job.note||'').trim().slice(0,160),
-     createdAt:flat(job.createdAt||'').slice(0,35),updatedAt:flat(job.updatedAt||'').slice(0,35)};
+     createdAt:flat(job.createdAt||'').slice(0,35),updatedAt:flat(job.updatedAt||'').slice(0,35),signoff:validatedSignoff(job.signoff)};
   });
   if(new Set(orders.map(j=>j.id)).size!==orders.length)throw Error('派工編號重複');
   return {_workOrders:orders};
@@ -229,6 +259,7 @@ window.ChanceLocal=Object.freeze({
 });
 if(C.kind==='orders'||C.kind==='inventory'){const workflowScript=document.createElement('script');workflowScript.src='../assets/workflows.js';workflowScript.defer=true;document.head.append(workflowScript)}
 if(C.kind==='filter'){const dispatchScript=document.createElement('script');dispatchScript.src='../assets/filter-dispatch.js';dispatchScript.defer=true;document.head.append(dispatchScript)}
+if(C.kind==='filter'){const signoffScript=document.createElement('script');signoffScript.src='../assets/filter-signoff.js';signoffScript.defer=true;document.head.append(signoffScript)}
 const insightScript=document.createElement('script');insightScript.src='../assets/insights.js';insightScript.defer=true;document.head.append(insightScript);
 const remindersScript=document.createElement('script');remindersScript.src='../assets/reminders.js';remindersScript.defer=true;document.head.append(remindersScript);
 const cloudScript=document.createElement('script');cloudScript.src='../assets/cloud.js';cloudScript.defer=true;document.head.append(cloudScript);
