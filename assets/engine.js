@@ -17,9 +17,10 @@ const CHANCE_EXTRA_FIELDS={
 };
 for(const f of CHANCE_EXTRA_FIELDS[C?.kind]||[]){if(!C.fields.some(existing=>existing[0]===f[0]))C.fields.push(f)}
 if(!C){document.body.textContent='Configuration missing';return;}
-const q=id=>document.getElementById(id),nf=new Intl.NumberFormat('zh-TW',{maximumFractionDigits:2}),today=()=>new Date().toISOString().slice(0,10);
+const q=id=>document.getElementById(id),nf=new Intl.NumberFormat('zh-TW',{maximumFractionDigits:2}),today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 const num=(r,k)=>{const v=Number(r[k]);return Number.isFinite(v)?v:0},money=n=>'NT$ '+nf.format(Math.round(n)),digits=n=>nf.format(Math.round(n*100)/100);
-const days=date=>{if(!/^\d{4}-\d{2}-\d{2}$/.test(date||''))return NaN;const t=new Date(date+'T12:00:00');const now=new Date();now.setHours(12,0,0,0);return Math.round((t-now)/86400000)};
+const validDate=value=>{if(!/^\d{4}-\d{2}-\d{2}$/.test(value||''))return false;const d=new Date(value+'T12:00:00');return Number.isFinite(d.getTime())&&d.getFullYear()===Number(value.slice(0,4))&&d.getMonth()+1===Number(value.slice(5,7))&&d.getDate()===Number(value.slice(8,10))};
+const days=date=>{if(!validDate(date))return NaN;const t=new Date(date+'T12:00:00');const now=new Date();now.setHours(12,0,0,0);return Math.round((t-now)/86400000)};
 const addDays=(d,n)=>{const v=new Date(d+'T12:00:00');if(!Number.isFinite(v.getTime()))return '';v.setDate(v.getDate()+n);return v.getFullYear()+'-'+String(v.getMonth()+1).padStart(2,'0')+'-'+String(v.getDate()).padStart(2,'0')};
 const flat=(v)=>String(v??''),text=(tag,content,cls)=>{const el=document.createElement(tag);el.textContent=flat(content);if(cls)el.className=cls;return el};
 const fieldOf=k=>C.fields.find(f=>f[0]===k);
@@ -67,11 +68,24 @@ function openEditor(id){const r=rows.find(v=>v._id===id)||{};activeId=id||null;q
  control.id='field-'+k;control.name=k;control.required=!f[4]?.optional;control.value=r[k]??(kind==='number'?'0':kind==='select'?(options||'').split('|')[0]:'');wrap.append(control);body.append(wrap)});
  q('dialog').showModal();const first=body.querySelector('input,select');if(first)first.focus();
 }
-function clean(raw){const out={};C.fields.forEach(([k,,kind,opts])=>{let v=raw[k];if(kind==='number'){v=Number(v);v=Number.isFinite(v)?Math.max(0,Math.min(v,1e12)):0}else if(kind==='select'){v=(opts||'').split('|').includes(v)?v:(opts||'').split('|')[0]}else if(kind==='date'){v=/^\d{4}-\d{2}-\d{2}$/.test(v||'')?v:''}else{v=flat(v).trim().slice(0,140)}out[k]=v});return out}
+function clean(raw){const out={};C.fields.forEach(([k,,kind,opts])=>{let v=raw[k];if(kind==='number'){v=Number(v);v=Number.isFinite(v)?Math.max(0,Math.min(v,1e12)):0}else if(kind==='select'){v=(opts||'').split('|').includes(v)?v:(opts||'').split('|')[0]}else if(kind==='date'){v=validDate(v)?v:''}else{v=flat(v).trim().slice(0,140)}out[k]=v});return out}
+function validateImport(data,line){
+ for(const [key,label,kind,opts,meta] of C.fields){
+  const v=flat(data[key]).trim();
+  if(!v){if(!meta?.optional)throw Error('第 '+line+' 列缺少必要欄位：'+label);continue}
+  if(kind==='number'&&(!Number.isFinite(Number(v))||Number(v)<0||Number(v)>1e12))throw Error('第 '+line+' 列數值不正確：'+label);
+  if(kind==='date'&&!validDate(v))throw Error('第 '+line+' 列日期不正確：'+label);
+  if(kind==='select'&&!(opts||'').split('|').includes(v))throw Error('第 '+line+' 列選項不正確：'+label);
+  if(kind==='text'&&v.length>140)throw Error('第 '+line+' 列文字超過 140 字：'+label);
+ }
+}
 q('record-form').addEventListener('submit',e=>{e.preventDefault();const raw=Object.fromEntries(new FormData(e.target).entries());const cleaned=clean(raw);if(!cleaned[C.fields[0][0]]){toast('請填寫第一欄');return}
- if(activeId){const i=rows.findIndex(r=>r._id===activeId);if(i>=0)rows[i]={...rows[i],...cleaned,_updated:new Date().toISOString()}}else{rows.unshift({_id:(globalThis.crypto&&crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random()),_updated:new Date().toISOString(),...cleaned})}
- persist();q('dialog').close();recalc();toast('已儲存');});
-q('records').addEventListener('click',e=>{const btn=e.target.closest('button[data-action]');if(!btn)return;if(btn.dataset.action==='edit')openEditor(btn.dataset.id);else if(confirm('確定刪除這筆資料？刪除後需使用備份才能復原。')){rows=rows.filter(r=>r._id!==btn.dataset.id);persist();recalc()}});
+ const previous=rows;
+ if(activeId){rows=rows.map(r=>r._id===activeId?{...r,...cleaned,_updated:new Date().toISOString()}:r)}
+ else{if(rows.length>=5000){toast('已達 5,000 筆上限，請先備份並整理資料');return}rows=[{_id:(globalThis.crypto&&crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random()),_updated:new Date().toISOString(),...cleaned},...rows]}
+ if(!persist()){rows=previous;recalc();return}
+ q('dialog').close();recalc();toast('已儲存');});
+q('records').addEventListener('click',e=>{const btn=e.target.closest('button[data-action]');if(!btn)return;if(btn.dataset.action==='edit')openEditor(btn.dataset.id);else if(confirm('確定刪除這筆資料？刪除後需使用備份才能復原。')){{const previous=rows;rows=rows.filter(r=>r._id!==btn.dataset.id);if(!persist())rows=previous;recalc()}}});
 q('add').addEventListener('click',()=>openEditor(null));q('cancel').addEventListener('click',()=>q('dialog').close());q('search').addEventListener('input',e=>{term=e.target.value.trim().toLowerCase();recalc()});
 function download(filename,str,type){const url=URL.createObjectURL(new Blob([str],{type}));const a=document.createElement('a');a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000)}
 function csvCell(v){const source=flat(v);const safe=/^\s*[=+@-]/.test(source)?"'"+source:source;return '"'+safe.replace(/"/g,'""')+'"'}
@@ -107,9 +121,9 @@ csvControl.addEventListener('change',async event=>{
   if(indices.some((v,i)=>v<0&&!C.fields[i][4]?.optional))throw Error('CSV 缺少必要欄位：'+C.fields.filter((f,i)=>indices[i]<0&&!f[4]?.optional).map(f=>f[1]).join('、'));
   const imported=parsed.map((record,i)=>{
     const data={};C.fields.forEach((f,j)=>data[f[0]]=record[indices[j]]??'');
-    const cleaned=clean(data);
-    if(!cleaned[C.fields[0][0]])throw Error('第 '+(i+2)+' 列的第一欄不得空白');
-    return {_id:crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random(),_updated:new Date().toISOString(),...cleaned};
+    validateImport(data,i+2);
+     const cleaned=clean(data);
+     return {_id:crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random(),_updated:new Date().toISOString(),...cleaned};
   });
   if(rows.length+imported.length>5000)throw Error('超過總共 5,000 筆的限制，請拆分資料或先匯出備份');
   if(!confirm('即將追加 '+imported.length+' 筆紀錄（不刪除原本 '+rows.length+' 筆）。確定匯入？'))return;
@@ -121,7 +135,17 @@ csvControl.addEventListener('change',async event=>{
 });
 
 q('backup').addEventListener('click',()=>download(C.slug+'-backup-'+today()+'.json',JSON.stringify({schema:1,app:C.slug,exportedAt:new Date().toISOString(),records:rows},null,2),'application/json'));
-q('restore').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;try{if(file.size>5e6)throw Error('檔案太大');const obj=JSON.parse(await file.text());if(obj.app!==C.slug||!Array.isArray(obj.records)||obj.records.length>5000)throw Error('備份格式或產品不符');if(!confirm('匯入將取代本產品目前的 '+rows.length+' 筆紀錄，確定嗎？'))return;rows=obj.records.map((x,i)=>({...clean(x),_id:flat(x._id||i),_updated:flat(x._updated||new Date().toISOString())}));persist();recalc();toast('已還原 '+rows.length+' 筆紀錄')}catch(err){toast('匯入失敗：'+err.message)}finally{e.target.value=''}});
+q('restore').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;try{
+ if(file.size>5e6)throw Error('檔案太大');
+ const obj=JSON.parse(await file.text());
+ if(obj.app!==C.slug||!Array.isArray(obj.records)||obj.records.length>5000)throw Error('備份格式或產品不符');
+ const imported=obj.records.map((x,i)=>{if(!x||typeof x!=='object'||Array.isArray(x))throw Error('第 '+(i+1)+' 筆備份格式不正確');validateImport(x,i+1);return {...clean(x),_id:flat(x._id||('import-'+i)).slice(0,150),_updated:flat(x._updated||new Date().toISOString()).slice(0,60)}});
+ if(new Set(imported.map(r=>r._id)).size!==imported.length)throw Error('備份包含重複的紀錄編號');
+ if(!confirm('匯入將取代本產品目前的 '+rows.length+' 筆紀錄，確定嗎？'))return;
+ const previous=rows;rows=imported;if(!persist()){rows=previous;recalc();return}
+ recalc();toast('已還原 '+rows.length+' 筆紀錄')
+ }catch(err){toast('匯入失敗：'+err.message)}finally{e.target.value=''}
+});
 q('print').addEventListener('click',()=>window.print());
 q('app-title').textContent=C.name;document.title=C.name+'｜Chance';q('app-lead').textContent=C.pain;q('app-source').textContent='來源編號 '+C.id+'｜建議售價 '+C.price+'，並非實際收費';q('app-description').textContent=C.scope;
 window.ChanceLocal=Object.freeze({
@@ -130,8 +154,10 @@ window.ChanceLocal=Object.freeze({
   count:()=>rows.length,
   replace:incoming=>{
     if(!Array.isArray(incoming)||incoming.length>5000)return false;
-    const updated=incoming.map((x,i)=>({...clean(x),_id:flat(x._id||('import-'+i)).slice(0,150),_updated:flat(x._updated||new Date().toISOString()).slice(0,60)}));
-    const prior=rows;rows=updated;
+    let updated;
+     try{updated=incoming.map((x,i)=>{if(!x||typeof x!=='object'||Array.isArray(x))throw Error('格式錯誤');validateImport(x,i+1);return {...clean(x),_id:flat(x._id||('import-'+i)).slice(0,150),_updated:flat(x._updated||new Date().toISOString()).slice(0,60)}})}catch{return false}
+     if(new Set(updated.map(r=>r._id)).size!==updated.length)return false;
+     const prior=rows;rows=updated;
     if(!persist()){rows=prior;return false}
     recalc();return true;
   }
