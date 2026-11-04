@@ -20,7 +20,7 @@ try{
     const page=await context.newPage(),jsErrors=[];
     page.on('pageerror',e=>jsErrors.push(e.message));
     await page.goto(base+'/'+slug+'/',{waitUntil:'load'});
-    await page.waitForFunction(()=>!!window.ChanceLocal && !!document.querySelector('.cloud-panel'),null,{timeout:8000});
+    await page.waitForFunction(()=>!!window.ChanceLocal && !!document.querySelector('.cloud-panel') && !!document.querySelector('.chance-analysis') && !!document.querySelector('.chance-reminders'),null,{timeout:9000});
     assert.equal(await page.locator('#metric-count').innerText(),'0',slug+' begins empty');
     assert.equal(await page.locator('.cloud-panel').count(),1,slug+' has Cloud panel');
     assert.equal(await page.locator('#cloud-guest').isVisible(),true,slug+' login form visible');
@@ -44,6 +44,22 @@ try{
     }
     await page.locator('#record-form button[type=submit]').click();
     assert.equal(await page.locator('#metric-count').innerText(),'1',slug+' creates row');
+    assert.equal(await page.locator('#chance-report-select').isEnabled(),true,slug+' enables industry report');
+    await page.locator('.chance-analysis button.primary').click();
+    assert.equal(await page.locator('#chance-report-dialog').isVisible(),true,slug+' opens industry report');
+    assert.ok((await page.locator('#chance-report-dialog').innerText()).includes('原始資料與佐證參考'),slug+' contains source audit');
+    if(slug==='invoice-proof'){
+      const pdf=await page.pdf({format:'A4',printBackground:true});
+      assert.ok(pdf.byteLength>4000 && pdf.subarray(0,5).toString()==='%PDF-',slug+' prints PDF');
+    }
+    await page.locator('#chance-report-dialog button').first().click();
+    if(slug==='invoice-proof'){
+      const downloadPromise=page.waitForEvent('download');
+      await page.locator('.chance-reminders button').click();
+      const calendar=await downloadPromise;
+      assert.ok(calendar.suggestedFilename().endsWith('.ics'),'downloadable calendar reminders');
+    }
+
     if(slug==='invoice-proof'){
       assert.ok((await page.locator('#metric-primary').innerText()).includes('2,000'),'Outstanding amount is 2,000');
       assert.ok((await page.locator('#records').innerText()).includes('已逾期'),'Overdue indicator visible');
