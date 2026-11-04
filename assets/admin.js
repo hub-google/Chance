@@ -82,7 +82,20 @@ async function refresh(){
  if(!trials.length)trialList.append(write('p','尚無付費試用意願。'));
  for(const t of trials){const row=document.createElement('article');row.className='chance-support-ticket';
   row.append(write('h3',t.app_slug+'｜'+t.plan_name),write('p',t.note||'未填需求說明'),write('small','帳號：'+t.user_id+'　狀態：'+t.status+'　'+new Date(t.created_at).toLocaleString('zh-TW')));
-  trialList.append(row);
+  const controls=document.createElement('div');controls.className='tools';controls.style.marginTop='10px';
+  const state=document.createElement('select');state.setAttribute('aria-label','試用意願處理狀態');state.style.padding='10px';
+  for(const [value,label] of Object.entries({new:'新申請',contacted:'已聯繫',closed:'已結案'})){
+    const option=document.createElement('option');option.value=value;option.textContent=label;state.append(option)
+  }state.value=t.status;
+  const save=write('button','儲存試用狀態');save.className='btn';
+  save.onclick=async()=>{
+   save.disabled=true;
+   try{
+    await api('/rest/v1/chance_trial_requests?id=eq.'+encodeURIComponent(t.id),'PATCH',{status:state.value},await bearer());
+    status('試用申請狀態已更新，此操作不代表付款成功。');await refresh();
+   }catch(e){status('無法儲存：'+e.message,true)}finally{save.disabled=false}
+  };
+  controls.append(state,save);row.append(controls);trialList.append(row);
  }
 }
 q('adm-login').onclick=login;q('adm-reuse').onclick=reuse;
