@@ -123,6 +123,23 @@ test('filter dispatch validates technicians, schedule, status and backup data',(
  assert.throws(()=>extra({_workOrders:[input,input]}),/重複/);
  assert.match(engine,/filter-dispatch\.js/);
 });
+test('onsite customer signoff enforces bounded strokes and signed job snapshot',()=>{
+ new vm.Script(fs.readFileSync(path.join(root,'assets/filter-signoff.js'),'utf8'));
+ const dateSource=engine.slice(engine.indexOf('const validDate='),engine.indexOf('const days='));
+ const validDate=new Function(dateSource+'return validDate;')();
+ const start=engine.indexOf('const finiteAmount='),end=engine.indexOf('function inventoryChange(',start);
+ const extra=new Function('C','flat','validDate',engine.slice(start,end)+'return structuredExtras;')({kind:'filter'},v=>String(v??''),validDate);
+ const signature={signer:'使用者測試',signedAt:'2026-11-04T12:00:00.000Z',acknowledged:true,
+  strokes:[[[110,400],[180,450],[260,380]]],
+  snapshot:{site:'第一據點',device:'X1',filter:'F1',batch:'B1',scheduled:'2030-02-14',note:'保養完成',assignees:['王技師','陳技師']}};
+ const job={id:'job-1',scheduled:'2030-02-14',assignees:['王技師','陳技師'],status:'已完成',note:'保養完成',signoff:signature};
+ const result=extra({_workOrders:[job]});
+ assert.equal(result._workOrders[0].signoff.signer,'使用者測試');
+ assert.equal(result._workOrders[0].signoff.snapshot.device,'X1');
+ assert.throws(()=>extra({_workOrders:[{...job,signoff:{...signature,strokes:[[[110,400],[1001,400]]]}}]}),/座標/);
+ assert.throws(()=>extra({_workOrders:[{...job,signoff:{...signature,acknowledged:false}}]}),/確認/);
+ assert.throws(()=>extra({_workOrders:[{...job,signoff:{...signature,snapshot:{...signature.snapshot,scheduled:'2030-02-30'}}}]}),/日期/);
+});
 test('optional cloud panel JavaScript parses and uses only publishable key',()=>{
  const cloud=fs.readFileSync(path.join(root,'assets/cloud.js'),'utf8');
  new vm.Script(cloud);
