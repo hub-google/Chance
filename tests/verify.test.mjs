@@ -140,6 +140,24 @@ test('onsite customer signoff enforces bounded strokes and signed job snapshot',
  assert.throws(()=>extra({_workOrders:[{...job,signoff:{...signature,acknowledged:false}}]}),/確認/);
  assert.throws(()=>extra({_workOrders:[{...job,signoff:{...signature,snapshot:{...signature.snapshot,scheduled:'2030-02-30'}}}]}),/日期/);
 });
+test('client confirmation uses safe hashed tokens and bounded public RPCs',()=>{
+ const sql=fs.readFileSync(path.join(root,'database/order-confirmations.sql'),'utf8');
+ const owner=fs.readFileSync(path.join(root,'assets/order-confirmations.js'),'utf8');
+ const guest=fs.readFileSync(path.join(root,'confirm/app.js'),'utf8');
+ const html=fs.readFileSync(path.join(root,'confirm/index.html'),'utf8');
+ new vm.Script(owner);new vm.Script(guest);
+ assert.match(sql,/alter table public\.chance_order_confirmations enable row level security/);
+ assert.match(sql,/token_hash text not null unique/);
+ assert.match(sql,/gen_random_bytes\(24\)/);
+ assert.match(sql,/extensions\.digest/);
+ assert.match(sql,/grant execute on function public\.chance_order_confirmation_preview\(text\) to anon,authenticated/);
+ assert.match(sql,/revoke all on public\.chance_order_confirmations from public,anon,authenticated/);
+ assert.match(owner,/chance_create_order_confirmation/);
+ assert.match(guest,/chance_order_confirmation_reply/);
+ assert.match(html,/no-referrer/);
+ assert.doesNotMatch(owner,/sb_secret_|service_role/);
+ assert.doesNotMatch(guest,/sb_secret_|service_role/);
+});
 test('optional cloud panel JavaScript parses and uses only publishable key',()=>{
  const cloud=fs.readFileSync(path.join(root,'assets/cloud.js'),'utf8');
  new vm.Script(cloud);
