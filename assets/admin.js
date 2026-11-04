@@ -26,8 +26,9 @@ async function checkAdmin(){
  const a=await api('/rest/v1/chance_admins?select=role,active&user_id=eq.'+encodeURIComponent(u.id)+'&limit=1','GET',null,await bearer());
  if(!a?.[0]?.active)throw Error('此帳號尚未加入 Chance 管理員名單；一般會員無法查看客服與試用資料。');
  role=a[0].role;auth.user_id=u.id;auth.email=u.email||'';localStorage.setItem(SKEY,JSON.stringify(auth));
+ q('adm-who').textContent='登入：'+(auth.email||u.id)+'｜權限：'+role;
+ await refresh();
  q('admin-signin').hidden=true;q('admin-content').hidden=false;
- q('adm-who').textContent='登入：'+(auth.email||u.id)+'｜權限：'+role;await refresh();
 }
 async function login(){
  q('adm-login').disabled=true;
