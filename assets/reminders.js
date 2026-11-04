@@ -32,7 +32,21 @@
  const target=main?.querySelector('.chance-analysis');
  if(target)target.after(section);else main?.append(section);
  const t=(tag,v,cls)=>{const e=document.createElement(tag);e.textContent=String(v??'');if(cls)e.className=cls;return e};
- const toEvents=()=>local.read().filter(r=>format(when(r))).map(r=>({date:when(r),title:(titleKey[C.kind]||'待辦')+'｜'+String(r[nameKey[C.kind]]||'未命名').slice(0,65),id:String(r._id||''),detail:'請在 Chance 網站核對資料、處理期限；非正式通知。'})).sort((a,b)=>a.date.localeCompare(b.date));
+ const toEvents=()=>{
+  const result=[];
+  for(const r of local.read()){
+   const title=(titleKey[C.kind]||'待辦')+'｜'+String(r[nameKey[C.kind]]||'未命名').slice(0,65);
+   const date=when(r);
+   if(format(date))result.push({date,title,id:String(r._id||''),detail:'請在 Chance 網站核對資料、處理期限；非正式通知。'});
+   if(C.kind==='orders'&&Array.isArray(r._payments)){
+    for(const stage of r._payments){
+     if(!format(stage.due)||!(Number(stage.planned)>Number(stage.received)))continue;
+     result.push({date:stage.due,title:'分期應收｜'+String(r.order||'未命名').slice(0,40)+'｜'+String(stage.label||'付款階段').slice(0,40),id:String(r._id||'')+'-'+String(stage._id||'').replace(/[^a-zA-Z0-9-]/g,''),detail:'請核對本期應收、實收與付款條件；非支付商催款通知。'});
+    }
+   }
+  }
+  return result.sort((a,b)=>a.date.localeCompare(b.date));
+ };
  function render(){
   items.replaceChildren();
   const events=toEvents();button.disabled=events.length===0;
