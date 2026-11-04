@@ -235,6 +235,7 @@ syncPanel.append(syncControl,syncState);
 account.insertBefore(syncPanel,planBar);
 let autoSync=false,syncVersion=null,syncBusy=false,syncDirty=false,applyingCloud=false,syncTimer=null,pollTimer=null;
 const settingKey=()=> 'chance.autosync.v1:'+C.slug+':'+(session?.user_id||'unknown');
+const canonical=value=>JSON.stringify(value,(k,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b))):v);
 function renderSync(){
  syncControl.textContent=autoSync?'關閉自動同步':'開啟自動同步';
  syncControl.className='btn '+(autoSync?'primary':'');
@@ -258,8 +259,9 @@ async function syncRead(){
  try{
   const remote=await remoteVersion();
   if(!remote||!Array.isArray(remote.records)){stopSync('雲端備份已刪除或無法讀取，為安全已暫停同步。');return}
-  if(remote.version===syncVersion)return;
+  if(remote.version===syncVersion||syncDirty)return;
   if(remote.version<syncVersion){stopSync('雲端版本比目前同步紀錄更舊，為避免資料遺失已暫停。');return}
+  if(syncDirty)return;
   applyingCloud=true;
   const ok=local.replace(remote.records);applyingCloud=false;
   if(!ok){stopSync('瀏覽器無法寫入雲端下載紀錄，已暫停同步。');return}
@@ -280,7 +282,7 @@ async function syncWrite(){
    stopSync('其他裝置已更動雲端資料：自動寫入已停止，本機資料完整保留。請手動比較兩份備份。');return
   }
   syncVersion=r[0].version;
-  syncDirty=false;
+  syncDirty=canonical(local.read())!==canonical(current);
   syncState.textContent='已自動同步 '+current.length+' 筆；雲端版次 '+syncVersion+'。';
  }catch(e){stopSync('自動上傳失敗（本機資料保留）：'+e.message)}
  finally{
@@ -304,7 +306,7 @@ async function attemptEnable(fromRestore=false){
   if(fromRestore)localStorage.removeItem(key);
   throw Error('尚無雲端備份。請先使用「上傳本機紀錄至雲端」。');
  }
- if(JSON.stringify(remote.records)!==JSON.stringify(local.read())){
+ if(canonical(remote.records)!==canonical(local.read())){
   if(fromRestore)localStorage.removeItem(key);
   throw Error('本機和雲端內容不同。為防止覆寫，請先手動上傳或下載，確認內容一致後再開啟。');
  }
