@@ -56,6 +56,8 @@ async function user(){
  session.user_id=u.id;session.email=u.email||session.email;localStorage.setItem(SKEY,JSON.stringify(session));render();
  return u;
 }
+// Read-only access to the existing authenticated session for the PRD order confirmation module.
+window.ChanceCloudSession=Object.freeze({getToken,user});
 async function remote(){
  await user();
  const data=await req('/rest/v1/chance_documents?select=records,version,updated_at&app_slug=eq.'+encodeURIComponent(C.slug)+'&limit=1','GET',null,await getToken());
