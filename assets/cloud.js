@@ -7,7 +7,7 @@ let session=null;
 try{const v=JSON.parse(localStorage.getItem(SKEY)||'null');if(v&&v.access_token&&v.refresh_token)session=v}catch{}
 const p=document.createElement('section');p.className='panel cloud-panel';
 p.innerHTML=[
-'<div class="toolbar"><div><h2>帳號、雲端備份與付費試用</h2><p class="note">本機紀錄不會自動同步，覆蓋前需要自行確認。此功能不會收款。</p></div><span id="cloud-status" class="pill">未登入</span></div>',
+'<div class="toolbar"><div><h2>帳號、雲端備份與付費試用</h2><p class="note">跨裝置同步預設關閉，可自行啟用；手動覆蓋前需確認。此功能不會收款。</p></div><span id="cloud-status" class="pill">未登入</span></div>',
 '<div id="cloud-guest"><div class="formgrid">',
 '<div class="field"><label for="cloud-email">電子郵件</label><input id="cloud-email" type="email" autocomplete="email" placeholder="you@example.com"></div>',
 '<div class="field"><label for="cloud-code">驗證碼</label><input id="cloud-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12" placeholder="請輸入郵件內的數字驗證碼"></div>',
@@ -140,7 +140,8 @@ account.append(service);
 const planBar=document.createElement('div');planBar.className='chance-account-extra';
 const entitlementLine=document.createElement('p');entitlementLine.className='note';entitlementLine.id='chance-entitlement-status';entitlementLine.textContent='尚未確認訂閱資格。';
 const erase=document.createElement('button');erase.className='btn danger';erase.id='chance-erase-cloud';erase.type='button';erase.textContent='刪除本產品雲端備份';
-planBar.append(entitlementLine,erase);
+const deletionRequest=document.createElement('button');deletionRequest.className='btn danger';deletionRequest.id='chance-request-erasure';deletionRequest.type='button';deletionRequest.textContent='申請刪除會員平台資料';
+planBar.append(entitlementLine,erase,deletionRequest);
 account.insertBefore(planBar,service);
 const legal=document.createElement('p');legal.className='note';legal.append('服務資料與風險說明：');
 for(const [label,url] of [['方案／收費','../pricing/'],['隱私','../legal/privacy.html'],['條款','../legal/terms.html']]){
@@ -217,6 +218,14 @@ erase.onclick=()=>action('chance-erase-cloud',async()=>{
  await req(path,'DELETE',null,await getToken(),'return=minimal');
  report('本產品雲端備份已刪除；本機資料未改變。');
  await Promise.all([originalInspect(),loadAudit()]);
+});
+
+deletionRequest.onclick=()=>action('chance-request-erasure',async()=>{
+ if(!confirm('將向網站客服提出會員資料刪除申請，由管理員核對身分與資料範圍後處理。申請不會立即刪除資料，確定送出嗎？'))return;
+ const u=await user();
+ await req('/rest/v1/chance_support_tickets','POST',{user_id:u.id,app_slug:C.slug,subject:'會員平台資料刪除申請',description:'請核實本人身分後，協助處理 Chance 平台會員資料與私人佐證附件的刪除請求；請在站內客服回覆進度。',status:'open'},await getToken(),'return=minimal');
+ report('已建立會員資料刪除申請，並非立即刪除。請至站內客服紀錄追蹤真人回覆。');
+ await loadSupport();
 });
 
 const originalInspect=inspect;
@@ -324,6 +333,15 @@ window.addEventListener('chance:change',e=>{
  syncTimer=setTimeout(()=>{syncTimer=null;syncWrite()},900);
 });
 window.addEventListener('storage',e=>{
+ if(e.key===SKEY){
+  if(!e.newValue){stopSync('其他分頁已登出，此分頁雲端功能已停用。');session=null;render();}
+  else{
+   let next=null;try{next=JSON.parse(e.newValue)}catch{}
+   if(!next?.access_token||!next?.refresh_token||!session?.user_id||next.user_id!==session.user_id){stopSync('其他分頁已變更登入帳號，本分頁停止使用原憑證。');session=null;render();}
+   else session=next;
+  }
+  return;
+ }
  if(autoSync&&e.key==='chance-products:'+C.slug+':v1')
   stopSync('偵測到其他瀏覽器分頁更新本機資料。為避免衝突已暫停同步；請重新整理後確認。');
 });
