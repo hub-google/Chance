@@ -97,6 +97,14 @@ test('storage quota failures cannot be displayed as successful edits or deletion
  assert.match(engine,/new Set\(imported\.map\(r=>r\._id\)\)/);
 });
 
+test('independent installment and inventory workflows compile and retain structured backups',()=>{
+ const workflows=fs.readFileSync(path.join(root,'assets/workflows.js'),'utf8');
+ new vm.Script(workflows);
+ assert.match(workflows,/chance-stage-planned/);
+ assert.match(workflows,/chance-stock-delta/);
+ assert.match(engine,/structuredExtras\(x\)/);
+ assert.match(engine,/updateStructured/);
+});
 test('optional cloud panel JavaScript parses and uses only publishable key',()=>{
  const cloud=fs.readFileSync(path.join(root,'assets/cloud.js'),'utf8');
  new vm.Script(cloud);
