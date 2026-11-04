@@ -137,6 +137,7 @@ window.ChanceLocal=Object.freeze({
   }
 });
 const insightScript=document.createElement('script');insightScript.src='../assets/insights.js';insightScript.defer=true;document.head.append(insightScript);
+const remindersScript=document.createElement('script');remindersScript.src='../assets/reminders.js';remindersScript.defer=true;document.head.append(remindersScript);
 const cloudScript=document.createElement('script');cloudScript.src='../assets/cloud.js';cloudScript.defer=true;document.head.append(cloudScript);
 recalc();
 })();
