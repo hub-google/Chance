@@ -348,5 +348,99 @@ if(session){
 }
 renderSync();
 
+
+// Authenticated private evidence attachments, 5MB JPG/PNG/PDF.
+// Never use public URLs or service-role keys; files remain private in Storage.
+const evidence=document.createElement('section');evidence.className='chance-evidence';
+evidence.innerHTML=[
+ '<hr class="subtle"><h3>私人佐證附件</h3>',
+ '<p class="note">可將 PDF、JPG 或 PNG 附加到指定紀錄（每檔最大 5 MB）。檔案保存在私人儲存空間，只可由該帳號讀取。請先遮蔽不必要的敏感資訊。</p>',
+ '<div class="formgrid"><div class="field"><label for="chance-file-record">附加至哪一筆紀錄</label><select id="chance-file-record"></select></div>',
+ '<div class="field"><label for="chance-file-input">選擇檔案</label><input id="chance-file-input" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"></div></div>',
+ '<div class="tools"><button id="chance-file-upload" class="btn primary" type="button">上傳私人附件</button><button id="chance-file-refresh" class="btn" type="button">重新整理附件列表</button></div>',
+ '<div id="chance-files-list" class="chance-support-list"></div>'
+].join('');
+account.append(evidence);
+const fileRecord=$('chance-file-record'),fileInput=$('chance-file-input'),filesList=$('chance-files-list');
+function populateRecords(){
+ const before=fileRecord.value,rows=local.read();
+ fileRecord.replaceChildren();
+ for(const row of rows){
+  const opt=document.createElement('option');opt.value=String(row._id||'');
+  opt.textContent=String(row[C.fields[0][0]]||'未命名').slice(0,75);fileRecord.append(opt);
+ }
+ if(rows.some(r=>String(r._id)===before))fileRecord.value=before;
+ $('chance-file-upload').disabled=!rows.length;
+}
+window.addEventListener('chance:change',e=>{if(e.detail?.slug===C.slug)populateRecords()});
+async function showFiles(){
+ if(!session)return;
+ const list=await req('/rest/v1/chance_evidence_files?select=id,record_id,original_name,object_key,mime_type,size_bytes,created_at&app_slug=eq.'+encodeURIComponent(C.slug)+'&order=created_at.desc&limit=100','GET',null,await getToken());
+ const records=local.read();
+ filesList.replaceChildren();
+ if(!list?.length){filesList.append(small('p','此產品尚無私人附件。','note'));return}
+ for(const file of list){
+  const item=document.createElement('div');item.className='chance-reminder-row';
+  const match=records.find(x=>String(x._id)===file.record_id),label=match?String(match[C.fields[0][0]]||'未命名'):'原紀錄已移除';
+  item.append(small('strong',file.original_name),small('span','對應紀錄：'+label+'　'+Math.round(file.size_bytes/1024)+' KB','note'));
+  const down=small('button','下載','btn');down.type='button';
+  down.onclick=async()=>{
+   down.disabled=true;
+   try{
+    const resp=await fetch(BASE+'/storage/v1/object/authenticated/chance-evidence/'+file.object_key.split('/').map(encodeURIComponent).join('/'),{
+      headers:{apikey:KEY,Authorization:'Bearer '+await getToken()},cache:'no-store'
+    });
+    if(!resp.ok)throw Error('下載回應 '+resp.status);
+    const data=await resp.blob(),url=URL.createObjectURL(data),a=document.createElement('a');
+    a.href=url;a.download=file.original_name;a.click();setTimeout(()=>URL.revokeObjectURL(url),5000);
+   }catch(e){report('下載失敗：'+e.message,true)}finally{down.disabled=false}
+  };
+  const del=small('button','刪除','btn danger');del.type='button';
+  del.onclick=async()=>{
+   if(!confirm('確定永久刪除私人附件「'+file.original_name+'」？此操作無法復原。'))return;
+   del.disabled=true;
+   try{
+    const resp=await fetch(BASE+'/storage/v1/object/chance-evidence',{
+      method:'DELETE',headers:{apikey:KEY,Authorization:'Bearer '+await getToken(),'Content-Type':'application/json'},
+      body:JSON.stringify({prefixes:[file.object_key]})
+    });
+    if(!resp.ok)throw Error('刪除檔案失敗（'+resp.status+'）');
+    await req('/rest/v1/chance_evidence_files?id=eq.'+encodeURIComponent(file.id),'DELETE',null,await getToken(),'return=minimal');
+    report('已刪除私人附件。');await showFiles();
+   }catch(e){report('刪除失敗：'+e.message,true)}finally{del.disabled=false}
+  };
+  item.append(down,del);filesList.append(item);
+ }
+}
+$('chance-file-upload').onclick=()=>action('chance-file-upload',async()=>{
+ const file=fileInput.files?.[0],recordId=fileRecord.value;
+ if(!recordId||!local.read().some(x=>String(x._id)===recordId))throw Error('請先選擇一筆有效紀錄');
+ if(!file)throw Error('請先選擇檔案');
+ if(!['image/png','image/jpeg','application/pdf'].includes(file.type))throw Error('只接受 JPG、PNG 或 PDF');
+ if(file.size<=0||file.size>5242880)throw Error('檔案不得為空且不可超過5MB');
+ const u=await user(),ext=file.type==='application/pdf'?'pdf':file.type==='image/png'?'png':'jpg';
+ const safeRecord=recordId.replace(/[^a-zA-Z0-9-]/g,'-').slice(0,150);
+ const key=u.id+'/'+C.slug+'/'+safeRecord+'/'+crypto.randomUUID()+'.'+ext;
+ const upload=await fetch(BASE+'/storage/v1/object/chance-evidence/'+key,{
+  method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+await getToken(),'Content-Type':file.type,'x-upsert':'false'},
+  body:file
+ });
+ if(!upload.ok){let msg='HTTP '+upload.status;try{msg=(await upload.json()).message||msg}catch{}throw Error('附件上傳失敗：'+msg)}
+ try{
+  await req('/rest/v1/chance_evidence_files','POST',{
+   user_id:u.id,app_slug:C.slug,record_id:recordId,object_key:key,
+   original_name:file.name.slice(0,150),mime_type:file.type,size_bytes:file.size
+  },await getToken(),'return=minimal');
+ }catch(error){
+  // Best-effort delete if the metadata insert fails. Do not claim success.
+  await fetch(BASE+'/storage/v1/object/chance-evidence',{method:'DELETE',headers:{apikey:KEY,Authorization:'Bearer '+await getToken(),'Content-Type':'application/json'},body:JSON.stringify({prefixes:[key]})}).catch(()=>{});
+  throw Error('附件索引儲存失敗：'+error.message);
+ }
+ fileInput.value='';report('私人附件已上傳，請在下方列表查閱。');await showFiles();
+});
+$('chance-file-refresh').onclick=()=>action('chance-file-refresh',async()=>{await showFiles();report('附件列表已更新。')});
+populateRecords();
+if(session)showFiles().catch(e=>report('附件清單無法讀取：'+e.message,true));
+
 render();if(session)inspect();
 })();
