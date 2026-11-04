@@ -140,7 +140,7 @@ try{
  assert.equal(stored.size,0,'private file content removed');
  console.log('PASS private PDF upload, authenticated download, storage object delete and metadata cleanup');
  await page.click('#chance-erase-cloud');
- await page.waitForFunction(()=>document.querySelector('#cloud-message')?.textContent.includes('已刪除'),null,{timeout:10000});
+ await page.waitForFunction(()=>document.querySelector('#cloud-message')?.textContent.includes('本產品雲端備份已刪除'),null,{timeout:10000});
  assert.equal(doc,null,'cloud backup deleted, local untouched');
  assert.equal(await page.locator('#metric-count').innerText(),'1','local record preserved');
  assert.equal(events.at(0).action,'DELETE','database audit records deletion');
