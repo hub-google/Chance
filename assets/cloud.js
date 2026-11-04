@@ -136,6 +136,18 @@ service.innerHTML=[
  '<div id="chance-audit-list" class="chance-support-list"></div>'
 ].join('');
 account.append(service);
+
+const planBar=document.createElement('div');planBar.className='chance-account-extra';
+const entitlementLine=document.createElement('p');entitlementLine.className='note';entitlementLine.id='chance-entitlement-status';entitlementLine.textContent='尚未確認訂閱資格。';
+const erase=document.createElement('button');erase.className='btn danger';erase.id='chance-erase-cloud';erase.type='button';erase.textContent='刪除本產品雲端備份';
+planBar.append(entitlementLine,erase);
+account.insertBefore(planBar,service);
+const legal=document.createElement('p');legal.className='note';legal.append('服務資料與風險說明：');
+for(const [label,url] of [['方案／收費','../pricing/'],['隱私','../legal/privacy.html'],['條款','../legal/terms.html']]){
+ const a=document.createElement('a');a.href=url;a.textContent=label;a.style.marginLeft='12px';legal.append(a);
+}
+p.append(legal);
+
 const subj=$('chance-support-subject'),description=$('chance-support-description');
 const ticketArea=$('chance-support-tickets'),auditArea=$('chance-audit-list');
 const small=(tag,value,cls='')=>{const el=document.createElement(tag);el.textContent=String(value??'');if(cls)el.className=cls;return el};
@@ -189,10 +201,28 @@ $('chance-support-refresh').onclick=()=>action('chance-support-refresh',async()=
  await Promise.all([loadSupport(),loadAudit()]);
  report('客服與雲端操作紀錄已更新。');
 });
+
+async function loadEntitlement(){
+ if(!session)return;
+ try{
+  const data=await req('/rest/v1/chance_entitlements?select=plan_code,status,ends_at&app_slug=eq.'+encodeURIComponent(C.slug)+'&limit=1','GET',null,await getToken());
+  const ent=data?.[0];
+  entitlementLine.textContent=ent?'伺服器方案狀態：'+ent.plan_code+'／'+ent.status+(ent.ends_at?'，有效期限 '+new Date(ent.ends_at).toLocaleDateString('zh-TW'):''):'目前未建立付費訂閱；仍可使用免費本機工具。';
+ }catch(e){entitlementLine.textContent='無法查詢訂閱狀態：'+e.message}
+}
+erase.onclick=()=>action('chance-erase-cloud',async()=>{
+ if(!confirm('此操作將永久刪除此產品在雲端的 JSON 備份，不會清除本機紀錄或其他產品。要繼續嗎？'))return;
+ if(!confirm('第二次確認：確定刪除本產品的所有雲端備份嗎？請先下載 JSON。'))return;
+ const u=await user(),path='/rest/v1/chance_documents?user_id=eq.'+encodeURIComponent(u.id)+'&app_slug=eq.'+encodeURIComponent(C.slug);
+ await req(path,'DELETE',null,await getToken(),'return=minimal');
+ report('本產品雲端備份已刪除；本機資料未改變。');
+ await Promise.all([originalInspect(),loadAudit()]);
+});
+
 const originalInspect=inspect;
 inspect=async()=>{
  await originalInspect();
- if(session)await Promise.all([loadSupport(),loadAudit()]);
+ if(session)await Promise.all([loadSupport(),loadAudit(),loadEntitlement()]);
 };
 
 render();if(session)inspect();
