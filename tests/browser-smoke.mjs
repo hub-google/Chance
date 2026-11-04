@@ -77,6 +77,31 @@ try{
       assert.ok((await page.locator('#chance-workflow-list').innerText()).includes('第二期款'));
       assert.ok((await page.locator('.chance-reminders').innerText()).includes('第二期款'),'installment due appears in reminder list');
     }
+    if(slug==='filter-service'){
+      await page.waitForSelector('.chance-filter-dispatch');
+      await page.locator('#chance-dispatch-date').fill('2030-02-14');
+      await page.locator('#chance-dispatch-technicians').fill('王技師, 陳技師');
+      await page.locator('#chance-dispatch-note').fill('濾芯更換與水質檢測');
+      await page.locator('#chance-dispatch-form button[type=submit]').click();
+      let device=await page.evaluate(()=>window.ChanceLocal.read()[0]);
+      assert.equal(device._workOrders.length,1,'device dispatch created');
+      assert.deepEqual(device._workOrders[0].assignees,['王技師','陳技師'],'multiple technicians per dispatch');
+      assert.equal(device._workOrders[0].status,'已指派','default assigned status');
+      assert.ok((await page.locator('.chance-reminders').innerText()).includes('保養派工'),'dispatch due appears in reminder list');
+      const icsPromise=page.waitForEvent('download');
+      await page.locator('.chance-reminders button').click();
+      const ics=await icsPromise;
+      assert.ok(ics.suggestedFilename().endsWith('.ics'),'dispatch exports existing ICS calendar');
+      const stream=await ics.createReadStream();
+      const parts=[];for await(const chunk of stream)parts.push(chunk);
+      assert.ok(Buffer.concat(parts).toString('utf8').includes('王技師'),'ICS contains assigned technician detail');
+      await page.locator('#chance-dispatch-list button').first().click();
+      await page.locator('#chance-dispatch-status').selectOption('執行中');
+      await page.locator('#chance-dispatch-form button[type=submit]').click();
+      device=await page.evaluate(()=>window.ChanceLocal.read()[0]);
+      assert.equal(device._workOrders[0].status,'執行中','dispatch status edited');
+      assert.equal(device._workOrders.length,1,'editing does not duplicate job');
+    }
     if(slug==='carton-inventory'){
       await page.waitForSelector('.chance-workflow');
       await page.locator('#chance-stock-delta').fill('5');
@@ -92,6 +117,16 @@ try{
     assert.equal(await page.locator('#metric-count').innerText(),'1',slug+' persists after reload');
     if(slug==='custom-order-payments')assert.equal((await page.evaluate(()=>window.ChanceLocal.read()[0]))._payments.length,2,'installments persist after reload');
     if(slug==='carton-inventory')assert.equal((await page.evaluate(()=>window.ChanceLocal.read()[0]))._movements.length,2,'stock history persists after reload');
+    if(slug==='filter-service'){
+      const device=await page.evaluate(()=>window.ChanceLocal.read()[0]);
+      assert.equal(device._workOrders.length,1,'dispatch survives reload and backup record');
+      assert.equal(device._workOrders[0].status,'執行中','dispatch status survives reload');
+      assert.equal(device._workOrders[0].assignees.length,2,'both technicians survive reload');
+      page.once('dialog',d=>d.accept());
+      await page.locator('#chance-dispatch-list button').last().click();
+      assert.equal((await page.evaluate(()=>window.ChanceLocal.read()[0]))._workOrders.length,0,'dispatch deletion works');
+    }
+
     await page.locator('#records button[data-action=edit]').click();
     assert.equal(await page.locator('#dialog').isVisible(),true,slug+' edit dialog opens');
     await page.locator('#cancel').click();
