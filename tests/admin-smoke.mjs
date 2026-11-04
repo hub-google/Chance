@@ -6,7 +6,7 @@ const base='http://127.0.0.1:8978';
 const server=spawn('python3',['-m','http.server','8978','--bind','127.0.0.1'],{stdio:'ignore'});
 const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
 const id='99999999-9999-4999-8999-999999999999',email='synthetic-ops@example.invalid';
-let allow=false,replyCount=0,updatedStatus='open';
+let allow=false,replyCount=0,updatedStatus='open',trialStatus='new';
 try{
  let ready=false;
  for(let i=0;i<30;i++){try{if((await fetch(base+'/')).ok){ready=true;break}}catch{}await sleep(140)}
@@ -25,7 +25,7 @@ try{
    if(method==='GET')return send([{id:'22222222-2222-4222-8222-222222222222',user_id:id,app_slug:'invoice-proof',subject:'合成測試客服問題',description:'客服後台權限測試',status:updatedStatus,created_at:new Date().toISOString()}]);
    if(method==='PATCH'){updatedStatus=req.postDataJSON().status;return send([{status:updatedStatus}])}
   }
-  if(path==='/rest/v1/chance_trial_requests')return send([{id:'aaaa',user_id:id,app_slug:'invoice-proof',plan_name:'付費試用',note:'僅模擬',status:'new',created_at:new Date().toISOString()}]);
+  if(path==='/rest/v1/chance_trial_requests'){if(method==='PATCH'){trialStatus=req.postDataJSON().status;return send([{status:trialStatus}])}return send([{id:'aaaa',user_id:id,app_slug:'invoice-proof',plan_name:'付費試用',note:'僅模擬',status:trialStatus,created_at:new Date().toISOString()}])}
   if(path==='/rest/v1/chance_support_replies'){
    if(method==='GET')return send([]);
    if(method==='POST'){replyCount++;return send([req.postDataJSON()])}
@@ -47,6 +47,11 @@ try{
  for(let i=0;i<80&&updatedStatus!=='answered';i++)await sleep(100);
  assert.equal(replyCount,1,'staff reply creates private message');
  assert.equal(updatedStatus,'answered','staff reply moves ticket to answered');
+ await page.locator('#adm-trials select[aria-label="試用意願處理狀態"]').selectOption('contacted');
+ await page.locator('#adm-trials button').click();
+ for(let i=0;i<50&&trialStatus!=='contacted';i++)await sleep(80);
+ assert.equal(trialStatus,'contacted','staff tracks contact without creating payment');
+
  await page.waitForFunction(()=>document.querySelector('#adm-status')?.textContent.includes('回覆已保存'),null,{timeout:8000});
  assert.deepEqual(errors,[],'no runtime errors');
  console.log('PASS admin deny-by-default, verified allowlist, private ticket read and human reply');
