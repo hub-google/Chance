@@ -38,6 +38,17 @@
    const title=(titleKey[C.kind]||'待辦')+'｜'+String(r[nameKey[C.kind]]||'未命名').slice(0,65);
    const date=when(r);
    if(format(date))result.push({date,title,id:String(r._id||''),detail:'請在 Chance 網站核對資料、處理期限；非正式通知。'});
+   if(C.kind==='filter'&&Array.isArray(r._workOrders)){
+    for(const job of r._workOrders){
+     if(!format(job.scheduled)||!['已指派','執行中'].includes(job.status))continue;
+     result.push({
+      date:job.scheduled,
+      title:'保養派工｜'+String(r.site||'未命名據點').slice(0,35)+'｜'+String(r.device||'未命名設備').slice(0,35),
+      id:String(r._id||'')+'-dispatch-'+String(job.id||'').replace(/[^a-zA-Z0-9-]/g,''),
+      detail:'已指派：'+(Array.isArray(job.assignees)?job.assignees.join('、'):'')+'。派工紀錄不代表技師已收到通知。'
+     });
+    }
+   }
    if(C.kind==='orders'&&Array.isArray(r._payments)){
     for(const stage of r._payments){
      if(!format(stage.due)||!(Number(stage.planned)>Number(stage.received)))continue;
