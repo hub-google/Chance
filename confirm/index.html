@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex,nofollow">
+<title>訂製商品規格確認｜Chance</title>
+<link rel="stylesheet" href="../assets/site.css">
+<script src="./app.js" defer></script>
+</head>
+<body>
+<header><div class="headbar"><span class="brand">CHANCE / 訂製規格確認</span></div>
+<h1>訂製商品規格確認</h1>
+<p class="lead">請核對店家提供的訂單資訊與規格摘要，再選擇確認或提出異議。</p>
+</header>
+<main style="max-width:800px;margin:0 auto">
+<section class="panel">
+<p id="confirm-notice" class="note" role="status" aria-live="polite">正在安全讀取確認資料…</p>
+<div id="confirm-details" hidden>
+<h2>請確認以下內容</h2>
+<div class="formgrid">
+<div><div class="note">訂單名稱／編號</div><p id="confirm-order"></p></div>
+<div><div class="note">客戶代稱</div><p id="confirm-client"></p></div>
+<div><div class="note">約定總價（新臺幣）</div><p id="confirm-total"></p></div>
+<div><div class="note">確認連結有效期限</div><p id="confirm-expiry"></p></div>
+</div>
+<h3>本次訂製規格摘要</h3>
+<p id="confirm-specs" style="white-space:pre-wrap;overflow-wrap:anywhere"></p>
+<div id="confirm-controls" hidden>
+<div class="field"><label for="confirm-feedback">異議說明（若要提出異議，請至少填寫 5 字）</label>
+<textarea id="confirm-feedback" rows="4" maxlength="500" placeholder="例如：尺寸需要修改"></textarea></div>
+<div class="tools">
+<button class="btn primary" id="confirm-accept" type="button">確認上述訂製規格</button>
+<button class="btn" id="confirm-decline" type="button">提出異議並送出</button>
+</div>
+</div>
+<p id="confirm-outcome" class="note" role="status" aria-live="polite"></p>
+</div>
+<p class="note">本頁是店家提供的規格確認紀錄，不提供付款、收集支付卡資料或法律電子簽名。此連結可轉傳；請確認它確實由您的店家提供。提交後無法用相同連結再次修改回覆。</p>
+</section>
+</main>
+</body>
+</html>
