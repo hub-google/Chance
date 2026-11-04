@@ -13,3 +13,42 @@ dialog{border:1px solid var(--line);border-radius:18px;padding:0;box-shadow:0 22
 .cloud-panel .subtle{border:0;border-top:1px solid var(--line);margin:20px 0}
 .cloud-panel input{max-width:100%}
 [hidden]{display:none!important}
+
+/* PRD v0.2: industry-specific analysis, first-use guide and print-ready reports. */
+.chance-analysis {margin-bottom:18px}
+.chance-analysis .analysis-metrics {margin:8px 0 16px;grid-template-columns:repeat(3,minmax(0,1fr))}
+.chance-analysis .analysis-actions {margin:12px 0 16px;align-items:center}
+.chance-analysis .analysis-actions select {background:white;min-width:190px;max-width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font:inherit}
+.chance-guide {border-top:1px solid var(--line);padding:15px 0 4px}
+.chance-guide summary {font-weight:700;cursor:pointer}
+.chance-guide ol {padding-left:22px;color:var(--muted)}
+.chance-guide li {margin:7px 0}
+.chance-report-dialog {width:min(900px,calc(100vw - 20px));max-width:min(900px,calc(100vw - 20px));max-height:95vh;overflow:auto;border-radius:14px}
+.chance-report-document {padding:28px 32px 12px;background:white;color:#1a2537}
+.chance-report-document section {margin:22px 0}
+.chance-paper-header {padding-bottom:16px;border-bottom:3px solid #254a94;background:white;color:#182747}
+.chance-paper-header h1 {font-size:29px;color:#14233f}
+.chance-dl {display:grid;grid-template-columns:minmax(120px,1fr) minmax(150px,2fr);border-top:1px solid var(--line);margin:4px 0}
+.chance-dl dt,.chance-dl dd {margin:0;padding:8px 12px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+.chance-dl dt {background:#f4f7fc;font-weight:700}
+.chance-report-document table {min-width:0;width:100%;font-size:12px}
+.chance-report-document th,.chance-report-document td {font-size:12px;padding:7px 9px;overflow-wrap:anywhere}
+.chance-report-document th {width:42%;font-weight:650}
+.chance-report-document ul {padding-left:22px}
+.chance-report-actions {padding:0 28px 24px}
+@media(max-width:650px){.chance-analysis .analysis-metrics{grid-template-columns:1fr}.chance-report-document{padding:16px}.chance-report-document .chance-dl{grid-template-columns:1fr}.chance-dl dd{margin-bottom:4px}.chance-analysis .analysis-actions select{flex:1}.chance-report-actions{padding:0 16px 18px}}
+@media print {
+ @page {size:A4; margin:13mm}
+ body * {visibility:hidden !important}
+ #chance-report-dialog,#chance-report-dialog * {visibility:visible !important}
+ #chance-report-dialog {display:block !important;position:absolute !important;inset:0 auto auto 0 !important;width:100% !important;max-width:none !important;max-height:none !important;overflow:visible !important;border:0 !important;border-radius:0 !important;box-shadow:none !important;margin:0 !important;padding:0 !important}
+ #chance-report {padding:0 !important;font-size:11pt}
+ #chance-report .chance-paper-header {display:block !important;background:white !important;color:black !important}
+ #chance-report .chance-paper-header h1 {font-size:22pt}
+ #chance-report .chance-dl {grid-template-columns:37% 63%}
+ #chance-report .chance-dl dt {background:#eee !important}
+ #chance-report section {break-inside:avoid}
+ #chance-report-dialog .chance-report-actions {display:none !important}
+ #chance-report header,#chance-report footer {display:block !important}
+ #chance-report .note {color:#555 !important}
+}
