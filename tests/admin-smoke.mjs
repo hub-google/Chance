@@ -44,9 +44,10 @@ try{
  assert.ok((await page.locator('#adm-trials').innerText()).includes('invoice-proof'));
  await page.locator('#adm-tickets textarea').fill('這是模擬管理員站內回覆，不會傳送真實資料。');
  await page.locator('#adm-tickets button.primary').click();
- for(let i=0;i<40&&replyCount===0;i++)await sleep(100);
+ for(let i=0;i<80&&updatedStatus!=='answered';i++)await sleep(100);
  assert.equal(replyCount,1,'staff reply creates private message');
  assert.equal(updatedStatus,'answered','staff reply moves ticket to answered');
+ await page.waitForFunction(()=>document.querySelector('#adm-status')?.textContent.includes('回覆已保存'),null,{timeout:8000});
  assert.deepEqual(errors,[],'no runtime errors');
  console.log('PASS admin deny-by-default, verified allowlist, private ticket read and human reply');
  await page.close();
