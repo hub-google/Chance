@@ -65,10 +65,29 @@ q('primary-caption').textContent=C.kind==='chargeback'?'平均證據完成率':C
 }
 function openEditor(id){const r=rows.find(v=>v._id===id)||{};activeId=id||null;q('form-title').textContent=id?'編輯紀錄':'新增紀錄';const body=q('fields');body.replaceChildren();
  C.fields.forEach((f)=>{const [k,label,kind,options]=f;const wrap=document.createElement('div');wrap.className='field';const lab=text('label',label);lab.htmlFor='field-'+k;wrap.append(lab);let control;if(kind==='select'){control=document.createElement('select');(options||'').split('|').forEach(o=>{let op=document.createElement('option');op.textContent=o;op.value=o;control.append(op)})}else{control=document.createElement('input');control.type=kind==='number'?'number':kind==='date'?'date':'text';if(kind==='number'){control.step='any';control.min='0'}else if(kind==='text'){control.maxLength=140}}
- control.id='field-'+k;control.name=k;control.required=!f[4]?.optional;control.value=r[k]??(kind==='number'?'0':kind==='select'?(options||'').split('|')[0]:'');wrap.append(control);body.append(wrap)});
+ control.id='field-'+k;control.name=k;control.required=!f[4]?.optional;control.value=r[k]??(kind==='number'?'0':kind==='select'?(options||'').split('|')[0]:'');if(C.kind==='orders'&&k==='paid'&&r._payments?.length){control.readOnly=true;wrap.append(text('p','已啟用獨立分期管理，累計已收由分期明細加總。','note'))}wrap.append(control);body.append(wrap)});
  q('dialog').showModal();const first=body.querySelector('input,select');if(first)first.focus();
 }
 function clean(raw){const out={};C.fields.forEach(([k,,kind,opts])=>{let v=raw[k];if(kind==='number'){v=Number(v);v=Number.isFinite(v)?Math.max(0,Math.min(v,1e12)):0}else if(kind==='select'){v=(opts||'').split('|').includes(v)?v:(opts||'').split('|')[0]}else if(kind==='date'){v=validDate(v)?v:''}else{v=flat(v).trim().slice(0,140)}out[k]=v});return out}
+// Structured PRD data is retained by both JSON backup and cloud document restore.
+const finiteAmount=v=>{const n=Number(v);return Number.isFinite(n)&&n>=0&&n<=1e12?n:0};
+function structuredExtras(x){
+ if(C.kind==='orders'&&x._payments!==undefined){
+  if(!Array.isArray(x._payments)||x._payments.length>200)throw Error('分期明細格式或筆數不正確');
+  return {_payments:x._payments.map((p,i)=>({_id:flat(p._id||('stage-'+i)).slice(0,100),label:flat(p.label||'第 '+(i+1)+' 期').slice(0,80),planned:finiteAmount(p.planned),received:finiteAmount(p.received),due:validDate(p.due)?p.due:'',at:flat(p.at||'').slice(0,35)}))};
+ }
+ if(C.kind==='inventory'&&x._movements!==undefined){
+  if(!Array.isArray(x._movements)||x._movements.length>500)throw Error('庫存異動明細格式或筆數不正確');
+  return {_movements:x._movements.map(m=>({at:flat(m.at||'').slice(0,35),reason:flat(m.reason||'庫存調整').slice(0,120),stockBefore:finiteAmount(m.stockBefore),stockAfter:finiteAmount(m.stockAfter),reservedBefore:finiteAmount(m.reservedBefore),reservedAfter:finiteAmount(m.reservedAfter)}))};
+ }
+ return {};
+}
+function inventoryChange(before,after,reason){
+ const history=Array.isArray(before._movements)?before._movements:[];
+ if(history.length>=500)throw Error('此商品異動已達 500 筆上限，請先匯出 JSON 備份');
+ const entry={at:new Date().toISOString(),reason,stockBefore:num(before,'stock'),stockAfter:num(after,'stock'),reservedBefore:num(before,'reserved'),reservedAfter:num(after,'reserved')};
+ return {...after,_movements:[...history,entry]};
+}
 function validateImport(data,line){
  for(const [key,label,kind,opts,meta] of C.fields){
   const v=flat(data[key]).trim();
@@ -81,8 +100,22 @@ function validateImport(data,line){
 }
 q('record-form').addEventListener('submit',e=>{e.preventDefault();const raw=Object.fromEntries(new FormData(e.target).entries());const cleaned=clean(raw);if(!cleaned[C.fields[0][0]]){toast('請填寫第一欄');return}
  const previous=rows;
- if(activeId){rows=rows.map(r=>r._id===activeId?{...r,...cleaned,_updated:new Date().toISOString()}:r)}
- else{if(rows.length>=5000){toast('已達 5,000 筆上限，請先備份並整理資料');return}rows=[{_id:(globalThis.crypto&&crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random()),_updated:new Date().toISOString(),...cleaned},...rows]}
+ if(activeId){
+  const original=rows.find(r=>r._id===activeId);
+  if(C.kind==='inventory'&&original&&(num(original,'stock')!==num(cleaned,'stock')||num(original,'reserved')!==num(cleaned,'reserved'))&&original._movements?.length>=500){toast('已達 500 筆異動上限，請先備份');return}
+  rows=rows.map(r=>{
+   if(r._id!==activeId)return r;
+   let updated={...r,...cleaned,_updated:new Date().toISOString()};
+   if(C.kind==='orders'&&r._payments?.length)updated.paid=r._payments.reduce((sum,p)=>sum+finiteAmount(p.received),0);
+   if(C.kind==='inventory'&&(num(r,'stock')!==num(updated,'stock')||num(r,'reserved')!==num(updated,'reserved')))updated=inventoryChange(r,updated,'直接編輯庫存紀錄');
+   return updated;
+  });
+ }else{
+  if(rows.length>=5000){toast('已達 5,000 筆上限，請先備份並整理資料');return}
+  let created={_id:(globalThis.crypto&&crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random()),_updated:new Date().toISOString(),...cleaned};
+  if(C.kind==='inventory')created=inventoryChange({stock:0,reserved:0,_movements:[]},created,'建立庫存紀錄');
+  rows=[created,...rows];
+ }
  if(!persist()){rows=previous;recalc();return}
  q('dialog').close();recalc();toast('已儲存');});
 q('records').addEventListener('click',e=>{const btn=e.target.closest('button[data-action]');if(!btn)return;if(btn.dataset.action==='edit')openEditor(btn.dataset.id);else if(confirm('確定刪除這筆資料？刪除後需使用備份才能復原。')){{const previous=rows;rows=rows.filter(r=>r._id!==btn.dataset.id);if(!persist())rows=previous;recalc()}}});
@@ -139,7 +172,7 @@ q('restore').addEventListener('change',async e=>{const file=e.target.files?.[0];
  if(file.size>5e6)throw Error('檔案太大');
  const obj=JSON.parse(await file.text());
  if(obj.app!==C.slug||!Array.isArray(obj.records)||obj.records.length>5000)throw Error('備份格式或產品不符');
- const imported=obj.records.map((x,i)=>{if(!x||typeof x!=='object'||Array.isArray(x))throw Error('第 '+(i+1)+' 筆備份格式不正確');validateImport(x,i+1);return {...clean(x),_id:flat(x._id||('import-'+i)).slice(0,150),_updated:flat(x._updated||new Date().toISOString()).slice(0,60)}});
+ const imported=obj.records.map((x,i)=>{if(!x||typeof x!=='object'||Array.isArray(x))throw Error('第 '+(i+1)+' 筆備份格式不正確');validateImport(x,i+1);return {...clean(x),...structuredExtras(x),_id:flat(x._id||('import-'+i)).slice(0,150),_updated:flat(x._updated||new Date().toISOString()).slice(0,60)}});
  if(new Set(imported.map(r=>r._id)).size!==imported.length)throw Error('備份包含重複的紀錄編號');
  if(!confirm('匯入將取代本產品目前的 '+rows.length+' 筆紀錄，確定嗎？'))return;
  const previous=rows;rows=imported;if(!persist()){rows=previous;recalc();return}
@@ -152,16 +185,29 @@ window.ChanceLocal=Object.freeze({
   slug:C.slug,
   read:()=>JSON.parse(JSON.stringify(rows)),
   count:()=>rows.length,
+  updateStructured:(id,changes)=>{
+    const old=rows.find(r=>r._id===id);if(!old)return false;
+    let next={...old,_updated:new Date().toISOString()};
+    try{
+      if(C.kind==='orders'&&changes._payments){const p=structuredExtras({_payments:changes._payments})._payments;next={...next,_payments:p,paid:p.reduce((sum,v)=>sum+v.received,0)}}
+      else if(C.kind==='inventory'&&changes._movements){next={...next,stock:finiteAmount(changes.stock),reserved:finiteAmount(changes.reserved),...structuredExtras({_movements:changes._movements})}}
+      else return false;
+    }catch(e){toast(e.message);return false}
+    const prior=rows;rows=rows.map(r=>r._id===id?next:r);
+    if(!persist()){rows=prior;recalc();return false}
+    recalc();return true;
+  },
   replace:incoming=>{
     if(!Array.isArray(incoming)||incoming.length>5000)return false;
     let updated;
-     try{updated=incoming.map((x,i)=>{if(!x||typeof x!=='object'||Array.isArray(x))throw Error('格式錯誤');validateImport(x,i+1);return {...clean(x),_id:flat(x._id||('import-'+i)).slice(0,150),_updated:flat(x._updated||new Date().toISOString()).slice(0,60)}})}catch{return false}
+     try{updated=incoming.map((x,i)=>{if(!x||typeof x!=='object'||Array.isArray(x))throw Error('格式錯誤');validateImport(x,i+1);return {...clean(x),...structuredExtras(x),_id:flat(x._id||('import-'+i)).slice(0,150),_updated:flat(x._updated||new Date().toISOString()).slice(0,60)}})}catch{return false}
      if(new Set(updated.map(r=>r._id)).size!==updated.length)return false;
      const prior=rows;rows=updated;
     if(!persist()){rows=prior;return false}
     recalc();return true;
   }
 });
+if(C.kind==='orders'||C.kind==='inventory'){const workflowScript=document.createElement('script');workflowScript.src='../assets/workflows.js';workflowScript.defer=true;document.head.append(workflowScript)}
 const insightScript=document.createElement('script');insightScript.src='../assets/insights.js';insightScript.defer=true;document.head.append(insightScript);
 const remindersScript=document.createElement('script');remindersScript.src='../assets/reminders.js';remindersScript.defer=true;document.head.append(remindersScript);
 const cloudScript=document.createElement('script');cloudScript.src='../assets/cloud.js';cloudScript.defer=true;document.head.append(cloudScript);
