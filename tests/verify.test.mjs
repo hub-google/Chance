@@ -21,7 +21,7 @@ test('10 standalone entrypoints and individual PRDs exist',()=>{
   assert.match(page,/assets\/engine.js/);
   assert.match(prd,/## 8\. 驗收標準/);
   assert.match(prd,/## 6\. 營利模式與驗證/);
-  assert.match(prd,/尚未完成正式商業營運/);
+  assert.match(prd,/正式金流.*未完成|尚不可正式收費|金流.*未啟用/);
   const match=page.match(/window\.CHANCE_APP=(\{.*\})<\/script>/s);
   assert.ok(match,dir+' valid embedded configuration');
   const obj=JSON.parse(match[1]);
@@ -34,6 +34,8 @@ test('shared engine parses as valid JavaScript',()=>{
  new vm.Script(engine);
  assert.match(engine,/const days=/);
  assert.match(engine,/const addDays=/);
+ assert.match(engine,/reminders\.js/);
+ assert.match(engine,/insights\.js/);
 });
 
 const fixtures=[
