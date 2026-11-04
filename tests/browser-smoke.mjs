@@ -64,9 +64,33 @@ try{
       assert.ok((await page.locator('#metric-primary').innerText()).includes('2,000'),'Outstanding amount is 2,000');
       assert.ok((await page.locator('#records').innerText()).includes('已逾期'),'Overdue indicator visible');
     }
+    if(slug==='custom-order-payments'){
+      await page.waitForSelector('.chance-workflow');
+      await page.locator('#chance-stage-label').fill('第二期款');
+      await page.locator('#chance-stage-planned').fill('500');
+      await page.locator('#chance-stage-received').fill('100');
+      await page.locator('#chance-stage-due').fill('2030-02-01');
+      await page.locator('#chance-workflow-form button[type=submit]').click();
+      const item=await page.evaluate(()=>window.ChanceLocal.read()[0]);
+      assert.equal(item._payments.length,2,'legacy received amount retained alongside first new stage');
+      assert.equal(item.paid,120,'aggregate includes previous received 20 and new received 100');
+      assert.ok((await page.locator('#chance-workflow-list').innerText()).includes('第二期款'));
+    }
+    if(slug==='carton-inventory'){
+      await page.waitForSelector('.chance-workflow');
+      await page.locator('#chance-stock-delta').fill('5');
+      await page.locator('#chance-stock-reason').fill('盤點增補');
+      await page.locator('#chance-workflow-form button[type=submit]').click();
+      const item=await page.evaluate(()=>window.ChanceLocal.read()[0]);
+      assert.equal(item.stock,25,'stock adjustment changes actual stock');
+      assert.equal(item._movements.length,2,'initial and subsequent stock changes audited');
+      assert.ok((await page.locator('#chance-workflow-list').innerText()).includes('盤點增補'));
+    }
     await page.reload({waitUntil:'load'});
     await page.waitForFunction(()=>!!window.ChanceLocal);
     assert.equal(await page.locator('#metric-count').innerText(),'1',slug+' persists after reload');
+    if(slug==='custom-order-payments')assert.equal((await page.evaluate(()=>window.ChanceLocal.read()[0]))._payments.length,2,'installments persist after reload');
+    if(slug==='carton-inventory')assert.equal((await page.evaluate(()=>window.ChanceLocal.read()[0]))._movements.length,2,'stock history persists after reload');
     await page.locator('#records button[data-action=edit]').click();
     assert.equal(await page.locator('#dialog').isVisible(),true,slug+' edit dialog opens');
     await page.locator('#cancel').click();
