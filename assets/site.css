@@ -65,3 +65,13 @@ dialog{border:1px solid var(--line);border-radius:18px;padding:0;box-shadow:0 22
 .chance-support-ticket{border:1px solid var(--line);border-radius:10px;padding:14px;margin:8px 0;background:white}
 .chance-support-ticket .pill{margin-left:10px}
 .chance-support-ticket blockquote{margin:10px 0 0;padding:10px 14px;border-left:3px solid #3f71cf;background:#f4f7fd;font-size:14px}
+
+.chance-reminder-items{margin-top:10px}
+.chance-reminder-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--line)}
+.chance-reminder-row strong{flex:1;min-width:160px}
+.chance-reminder-row .note{margin:0}
+.chance-account-extra{padding:14px 0;border-top:1px solid var(--line);margin:14px 0}
+.chance-account-extra .danger{margin:4px 0}
+@media print {
+ .chance-reminders,.chance-analysis,.cloud-panel{display:none!important}
+}
