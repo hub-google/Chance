@@ -75,6 +75,7 @@ try{
       assert.equal(item._payments.length,2,'legacy received amount retained alongside first new stage');
       assert.equal(item.paid,120,'aggregate includes previous received 20 and new received 100');
       assert.ok((await page.locator('#chance-workflow-list').innerText()).includes('第二期款'));
+      assert.ok((await page.locator('.chance-reminders').innerText()).includes('第二期款'),'installment due appears in reminder list');
     }
     if(slug==='carton-inventory'){
       await page.waitForSelector('.chance-workflow');
