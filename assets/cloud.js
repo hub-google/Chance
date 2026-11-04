@@ -225,5 +225,126 @@ inspect=async()=>{
  if(session)await Promise.all([loadSupport(),loadAudit(),loadEntitlement()]);
 };
 
+
+// Opt-in cross-device sync. All document updates use an optimistic version guard.
+// Conflicts stop automatic writes; local records are never deleted in a conflict.
+const syncPanel=document.createElement('div');syncPanel.className='chance-sync-panel';
+const syncControl=document.createElement('button');syncControl.id='chance-sync-toggle';syncControl.className='btn';syncControl.type='button';syncControl.textContent='開啟自動同步';
+const syncState=document.createElement('p');syncState.className='note';syncState.id='chance-sync-state';syncState.textContent='預設關閉。請先手動上傳／下載讓兩端資料一致，才可開啟。';
+syncPanel.append(syncControl,syncState);
+account.insertBefore(syncPanel,planBar);
+let autoSync=false,syncVersion=null,syncBusy=false,syncDirty=false,applyingCloud=false,syncTimer=null,pollTimer=null;
+const settingKey=()=> 'chance.autosync.v1:'+C.slug+':'+(session?.user_id||'unknown');
+function renderSync(){
+ syncControl.textContent=autoSync?'關閉自動同步':'開啟自動同步';
+ syncControl.className='btn '+(autoSync?'primary':'');
+}
+function stopSync(reason,keepPreference=false){
+ autoSync=false;syncVersion=null;syncDirty=false;
+ if(syncTimer){clearTimeout(syncTimer);syncTimer=null}
+ if(pollTimer){clearInterval(pollTimer);pollTimer=null}
+ if(session&&!keepPreference)localStorage.removeItem(settingKey());
+ renderSync();
+ if(reason)syncState.textContent=reason;
+}
+async function remoteVersion(){
+ const userResult=await user();
+ const result=await req('/rest/v1/chance_documents?select=records,version,updated_at&user_id=eq.'+encodeURIComponent(userResult.id)+'&app_slug=eq.'+encodeURIComponent(C.slug)+'&limit=1','GET',null,await getToken());
+ return result?.[0]||null;
+}
+async function syncRead(){
+ if(!autoSync||syncBusy||syncDirty)return;
+ syncBusy=true;
+ try{
+  const remote=await remoteVersion();
+  if(!remote||!Array.isArray(remote.records)){stopSync('雲端備份已刪除或無法讀取，為安全已暫停同步。');return}
+  if(remote.version===syncVersion)return;
+  if(remote.version<syncVersion){stopSync('雲端版本比目前同步紀錄更舊，為避免資料遺失已暫停。');return}
+  applyingCloud=true;
+  const ok=local.replace(remote.records);applyingCloud=false;
+  if(!ok){stopSync('瀏覽器無法寫入雲端下載紀錄，已暫停同步。');return}
+  syncVersion=remote.version;
+  syncState.textContent='已從其他裝置同步 '+remote.records.length+' 筆；雲端版次 '+syncVersion+'。';
+ }catch(e){applyingCloud=false;stopSync('自動同步讀取失敗，已暫停：'+e.message)}
+ finally{syncBusy=false}
+}
+async function syncWrite(){
+ if(!autoSync||syncBusy||!syncDirty)return;
+ syncBusy=true;
+ try{
+  const current=local.read();
+  const u=await user();
+  const path='/rest/v1/chance_documents?user_id=eq.'+encodeURIComponent(u.id)+'&app_slug=eq.'+encodeURIComponent(C.slug)+'&version=eq.'+syncVersion;
+  const r=await req(path,'PATCH',{records:current,version:syncVersion+1,updated_at:new Date().toISOString()},await getToken(),'return=representation');
+  if(!Array.isArray(r)||r.length!==1){
+   stopSync('其他裝置已更動雲端資料：自動寫入已停止，本機資料完整保留。請手動比較兩份備份。');return
+  }
+  syncVersion=r[0].version;
+  syncDirty=false;
+  syncState.textContent='已自動同步 '+current.length+' 筆；雲端版次 '+syncVersion+'。';
+ }catch(e){stopSync('自動上傳失敗（本機資料保留）：'+e.message)}
+ finally{
+  syncBusy=false;
+  if(autoSync&&syncDirty){if(syncTimer)clearTimeout(syncTimer);syncTimer=setTimeout(()=>{syncTimer=null;syncWrite()},900)}
+ }
+}
+function beginSync(remote){
+ syncVersion=remote.version;autoSync=true;syncDirty=false;
+ localStorage.setItem(settingKey(),'1');
+ syncState.textContent='同步開啟（僅此產品）。網頁開啟時每 25 秒檢查其他裝置更新；修改會在短暫等待後上傳。';
+ renderSync();
+ if(pollTimer)clearInterval(pollTimer);
+ pollTimer=setInterval(syncRead,25000);
+}
+async function attemptEnable(fromRestore=false){
+ if(!session)return;
+ if(!session.user_id)await user();
+ const key=settingKey(),remote=await remoteVersion();
+ if(!remote){
+  if(fromRestore)localStorage.removeItem(key);
+  throw Error('尚無雲端備份。請先使用「上傳本機紀錄至雲端」。');
+ }
+ if(JSON.stringify(remote.records)!==JSON.stringify(local.read())){
+  if(fromRestore)localStorage.removeItem(key);
+  throw Error('本機和雲端內容不同。為防止覆寫，請先手動上傳或下載，確認內容一致後再開啟。');
+ }
+ beginSync(remote);
+}
+syncControl.onclick=()=>action('chance-sync-toggle',async()=>{
+ if(autoSync){stopSync('已關閉自動同步。本機和雲端資料均未清除。');return}
+ await attemptEnable(false);
+ report('自動同步已啟用。衝突會停止同步，不會強制覆蓋另一台裝置。');
+});
+window.addEventListener('chance:change',e=>{
+ if(!autoSync||e.detail?.slug!==C.slug||applyingCloud)return;
+ syncDirty=true;
+ if(syncTimer)clearTimeout(syncTimer);
+ syncTimer=setTimeout(()=>{syncTimer=null;syncWrite()},900);
+});
+window.addEventListener('storage',e=>{
+ if(autoSync&&e.key==='chance-products:'+C.slug+':v1')
+  stopSync('偵測到其他瀏覽器分頁更新本機資料。為避免衝突已暫停同步；請重新整理後確認。');
+});
+const prevLogout=$('cloud-logout').onclick;
+$('cloud-logout').onclick=(event)=>{stopSync('已登出雲端，自動同步停止。');prevLogout(event)};
+for(const id of ['cloud-upload','cloud-download','chance-erase-cloud']){
+ const old=$(id)?.onclick;
+ if(old)$(id).onclick=(event)=>{
+  if(autoSync)stopSync('開始手動資料操作，自動同步已關閉；操作後可重新開啟。');
+  return old(event);
+ };
+}
+// Reconnect only if exactly the same local data is on the server.
+// Reconnection never silently overwrites local browser data.
+if(session){
+ Promise.resolve().then(async()=>{
+  try{
+   await user();
+   if(localStorage.getItem(settingKey())==='1')await attemptEnable(true);
+  }catch(e){syncState.textContent='未自動恢復同步：'+e.message}
+ });
+}
+renderSync();
+
 render();if(session)inspect();
 })();
