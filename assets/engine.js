@@ -1,6 +1,21 @@
 (function(){
 'use strict';
 const C=window.CHANCE_APP;
+
+// Optional industry-specific data, kept backward compatible with existing CSV and JSON.
+const CHANCE_EXTRA_FIELDS={
+ invoice:[['proofRef','驗收／交付證據連結','text',null,{optional:true}],['acceptanceDate','實際驗收日期','date',null,{optional:true}],['memo','追款與交付備註','text',null,{optional:true}]],
+ orders:[['production','製作進度','select','規格確認中|製作中|待交付|已交付',{optional:true}],['deposit','本單訂金（NT$）','number',null,{optional:true}],['notes','交付與停工條款備註','text',null,{optional:true}]],
+ inventory:[['unitCost','每包成本（NT$）','number',null,{optional:true}],['location','庫存所在地點','text',null,{optional:true}],['supplier','供應商代稱','text',null,{optional:true}]],
+ saas:[['owner','訂閱負責人','text',null,{optional:true}],['vendor','採購／管理單位','text',null,{optional:true}]],
+ filter:[['technician','本次保養人員','text',null,{optional:true}],['evidenceRef','履約照片／驗收證據連結','text',null,{optional:true}],['notes','保養備註','text',null,{optional:true}]],
+ chargeback:[['proofRef','證據資料夾連結','text',null,{optional:true}],['submittedAt','提交日期','date',null,{optional:true}],['notes','理由碼／時序備註','text',null,{optional:true}]],
+ contract:[['invoiceRef','核銷文件參考編號','text',null,{optional:true}],['contractNote','派工備註','text',null,{optional:true}]],
+ shortstay:[['platform','訂房平台','text',null,{optional:true}],['tax','該筆稅費（NT$）','number',null,{optional:true}]],
+ parking:[['siteLocation','現勘地址／備註','text',null,{optional:true}],['fieldNotes','現勘觀察','text',null,{optional:true}]],
+ laundry:[['machines','設備台數','number',null,{optional:true}],['machineNotes','設備年份／維修備註','text',null,{optional:true}]]
+};
+for(const f of CHANCE_EXTRA_FIELDS[C?.kind]||[]){if(!C.fields.some(existing=>existing[0]===f[0]))C.fields.push(f)}
 if(!C){document.body.textContent='Configuration missing';return;}
 const q=id=>document.getElementById(id),nf=new Intl.NumberFormat('zh-TW',{maximumFractionDigits:2}),today=()=>new Date().toISOString().slice(0,10);
 const num=(r,k)=>{const v=Number(r[k]);return Number.isFinite(v)?v:0},money=n=>'NT$ '+nf.format(Math.round(n)),digits=n=>nf.format(Math.round(n*100)/100);
@@ -29,7 +44,7 @@ function compute(r,all){
 }
 const key='chance-products:'+C.slug+':v1';let rows=[];try{const got=JSON.parse(localStorage.getItem(key)||'[]');if(Array.isArray(got))rows=got.filter(x=>x&&typeof x==='object').slice(0,5000)}catch(e){}
 let activeId=null,term='';
-function persist(){try{localStorage.setItem(key,JSON.stringify(rows));return true}catch(e){toast('無法儲存，請確認瀏覽器容量或隱私模式');return false}}
+function persist(){try{localStorage.setItem(key,JSON.stringify(rows));window.dispatchEvent(new CustomEvent('chance:change',{detail:{slug:C.slug,count:rows.length}}));return true}catch(e){toast('無法儲存，請確認瀏覽器容量或隱私模式');return false}}
 function toast(msg){q('toast').textContent=msg;q('toast').classList.add('visible');setTimeout(()=>q('toast').classList.remove('visible'),4000)}
 function recalc(){const c=rows.map(r=>compute(r,rows));const total=c.reduce((s,v)=>s+v.a,0),danger=c.filter(v=>v.flag!=='good').length;
 [['metric-count',nf.format(rows.length)],['metric-primary',C.kind==='chargeback'?digits(rows.length?total/rows.length:0)+'%':C.kind==='filter'?nf.format(c.filter(v=>v.flag==='bad').length)+' 台':C.kind==='inventory'?nf.format(total)+' 包':(C.kind==='parking'?'NT$ ':C.kind==='laundry'?'NT$ ':'NT$ ')+nf.format(Math.round(total))],['metric-alert',nf.format(danger)],['metric-storage','本機瀏覽器']].forEach(([id,value])=>q(id).textContent=value);
@@ -48,8 +63,8 @@ q('primary-caption').textContent=C.kind==='chargeback'?'平均證據完成率':C
  table.append(tb);wrap.append(table);
 }
 function openEditor(id){const r=rows.find(v=>v._id===id)||{};activeId=id||null;q('form-title').textContent=id?'編輯紀錄':'新增紀錄';const body=q('fields');body.replaceChildren();
- C.fields.forEach(([k,label,kind,options])=>{const wrap=document.createElement('div');wrap.className='field';const lab=text('label',label);lab.htmlFor='field-'+k;wrap.append(lab);let control;if(kind==='select'){control=document.createElement('select');(options||'').split('|').forEach(o=>{let op=document.createElement('option');op.textContent=o;op.value=o;control.append(op)})}else{control=document.createElement('input');control.type=kind==='number'?'number':kind==='date'?'date':'text';if(kind==='number'){control.step='any';control.min='0'}else if(kind==='text'){control.maxLength=140}}
- control.id='field-'+k;control.name=k;control.required=true;control.value=r[k]??(kind==='number'?'0':kind==='select'?(options||'').split('|')[0]:'');wrap.append(control);body.append(wrap)});
+ C.fields.forEach((f)=>{const [k,label,kind,options]=f;const wrap=document.createElement('div');wrap.className='field';const lab=text('label',label);lab.htmlFor='field-'+k;wrap.append(lab);let control;if(kind==='select'){control=document.createElement('select');(options||'').split('|').forEach(o=>{let op=document.createElement('option');op.textContent=o;op.value=o;control.append(op)})}else{control=document.createElement('input');control.type=kind==='number'?'number':kind==='date'?'date':'text';if(kind==='number'){control.step='any';control.min='0'}else if(kind==='text'){control.maxLength=140}}
+ control.id='field-'+k;control.name=k;control.required=!f[4]?.optional;control.value=r[k]??(kind==='number'?'0':kind==='select'?(options||'').split('|')[0]:'');wrap.append(control);body.append(wrap)});
  q('dialog').showModal();const first=body.querySelector('input,select');if(first)first.focus();
 }
 function clean(raw){const out={};C.fields.forEach(([k,,kind,opts])=>{let v=raw[k];if(kind==='number'){v=Number(v);v=Number.isFinite(v)?Math.max(0,Math.min(v,1e12)):0}else if(kind==='select'){v=(opts||'').split('|').includes(v)?v:(opts||'').split('|')[0]}else if(kind==='date'){v=/^\d{4}-\d{2}-\d{2}$/.test(v||'')?v:''}else{v=flat(v).trim().slice(0,140)}out[k]=v});return out}
@@ -89,7 +104,7 @@ csvControl.addEventListener('change',async event=>{
   if(parsed.length<2)throw Error('CSV 需要標題列與至少一筆紀錄');
   const head=parsed.shift().map(v=>v.trim());
   const indices=C.fields.map(f=>head.includes(f[0])?head.indexOf(f[0]):head.indexOf(f[1]));
-  if(indices.some(v=>v<0))throw Error('CSV 缺少必要欄位：'+C.fields.filter((f,i)=>indices[i]<0).map(f=>f[1]).join('、'));
+  if(indices.some((v,i)=>v<0&&!C.fields[i][4]?.optional))throw Error('CSV 缺少必要欄位：'+C.fields.filter((f,i)=>indices[i]<0&&!f[4]?.optional).map(f=>f[1]).join('、'));
   const imported=parsed.map((record,i)=>{
     const data={};C.fields.forEach((f,j)=>data[f[0]]=record[indices[j]]??'');
     const cleaned=clean(data);
@@ -121,6 +136,7 @@ window.ChanceLocal=Object.freeze({
     recalc();return true;
   }
 });
+const insightScript=document.createElement('script');insightScript.src='../assets/insights.js';insightScript.defer=true;document.head.append(insightScript);
 const cloudScript=document.createElement('script');cloudScript.src='../assets/cloud.js';cloudScript.defer=true;document.head.append(cloudScript);
 recalc();
 })();
