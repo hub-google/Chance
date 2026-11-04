@@ -7,7 +7,7 @@ const root='http://127.0.0.1:8977';
 const server=spawn('python3',['-m','http.server','8977','--bind','127.0.0.1'],{stdio:'ignore'});
 const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
 const id='00000000-0000-4000-8000-111111111111',email='chance-browser-test@example.invalid';
-let doc=null,events=[],tickets=[],replies=[],requests=0;
+let doc=null,events=[],tickets=[],replies=[],requests=0,files=[];const stored=new Map();
 try{
  let online=false;
  for(let i=0;i<30;i++){try{if((await fetch(root+'/')).ok){online=true;break}}catch{}await sleep(150)}
@@ -58,6 +58,32 @@ try{
      }
    }
    if(path==='/rest/v1/chance_support_replies'&&method==='GET')return reply(replies);
+
+   if(path==='/rest/v1/chance_evidence_files'){
+     if(method==='GET')return reply(files);
+     if(method==='POST'){
+       const body=req.postDataJSON();files.push({...body,id:'33333333-3333-4333-8333-333333333333',created_at:new Date().toISOString()});return reply({});
+     }
+     if(method==='DELETE'){
+       const entry=(u.searchParams.get('id')||'').replace('eq.','');
+       files=files.filter(f=>f.id!==entry);return reply({});
+     }
+   }
+   if(path.startsWith('/storage/v1/object/chance-evidence/')){
+     const key=path.slice('/storage/v1/object/chance-evidence/'.length);
+     if(method==='POST'){
+       stored.set(key,req.postDataBuffer());return reply({Key:key});
+     }
+   }
+   if(path.startsWith('/storage/v1/object/authenticated/chance-evidence/')&&method==='GET'){
+     const key=path.slice('/storage/v1/object/authenticated/chance-evidence/'.length);
+     if(!stored.has(key))throw Error('File not found '+key);
+     return route.fulfill({status:200,headers:{'content-type':'application/pdf','access-control-allow-origin':'*'},body:stored.get(key)});
+   }
+   if(path==='/storage/v1/object/chance-evidence'&&method==='DELETE'){
+     for(const k of req.postDataJSON().prefixes||[])stored.delete(k);
+     return reply([]);
+   }
    if(path==='/rest/v1/chance_entitlements'&&method==='GET')return reply([]);
    throw Error('Unexpected external request '+method+' '+u.pathname);
  });
@@ -94,7 +120,25 @@ try{
  replies.push({ticket_id:tickets[0].id,content:'模擬真人站內回覆',created_at:new Date().toISOString()});
  await page.click('#chance-support-refresh');
  await page.waitForFunction(()=>document.querySelector('#chance-support-tickets')?.textContent.includes('模擬真人站內回覆'),null,{timeout:9000});
+
+ assert.equal(await page.locator('#chance-file-upload').isEnabled(),true,'file upload available for saved record');
+ await page.locator('#chance-file-input').setInputFiles({
+   name:'synthetic.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4\\nsynthetic evidence\\n','utf8')
+ });
+ await page.locator('#chance-file-upload').click();
+ await page.waitForFunction(()=>document.querySelector('#chance-files-list')?.textContent.includes('synthetic.pdf'),null,{timeout:10000});
+ assert.equal(files.length,1,'file metadata saved in private record');
+ assert.equal(stored.size,1,'file content saved privately');
+ const downloadPromise=page.waitForEvent('download');
+ await page.locator('#chance-files-list button').first().click();
+ const receipt=await downloadPromise;
+ assert.equal(receipt.suggestedFilename(),'synthetic.pdf');
  page.on('dialog',d=>d.accept());
+ await page.locator('#chance-files-list button.danger').first().click();
+ await page.waitForFunction(()=>document.querySelector('#chance-files-list')?.textContent.includes('尚無私人附件'),null,{timeout:10000});
+ assert.equal(files.length,0,'file metadata removed');
+ assert.equal(stored.size,0,'private file content removed');
+ console.log('PASS private PDF upload, authenticated download, storage object delete and metadata cleanup');
  await page.click('#chance-erase-cloud');
  await page.waitForFunction(()=>document.querySelector('#cloud-message')?.textContent.includes('已刪除'),null,{timeout:10000});
  assert.equal(doc,null,'cloud backup deleted, local untouched');
