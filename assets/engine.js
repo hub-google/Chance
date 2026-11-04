@@ -271,9 +271,19 @@ window.ChanceLocal=Object.freeze({
 if(C.kind==='orders'||C.kind==='inventory'){const workflowScript=document.createElement('script');workflowScript.src='../assets/workflows.js';workflowScript.defer=true;document.head.append(workflowScript)}
 if(C.kind==='filter'){const dispatchScript=document.createElement('script');dispatchScript.src='../assets/filter-dispatch.js';dispatchScript.defer=true;document.head.append(dispatchScript)}
 if(C.kind==='filter'){const signoffScript=document.createElement('script');signoffScript.src='../assets/filter-signoff.js';signoffScript.defer=true;document.head.append(signoffScript)}
-if(C.kind==='orders'){const linkScript=document.createElement('script');linkScript.src='../assets/order-confirmations.js';linkScript.defer=true;document.head.append(linkScript)}
+
 const insightScript=document.createElement('script');insightScript.src='../assets/insights.js';insightScript.defer=true;document.head.append(insightScript);
 const remindersScript=document.createElement('script');remindersScript.src='../assets/reminders.js';remindersScript.defer=true;document.head.append(remindersScript);
-const cloudScript=document.createElement('script');cloudScript.src='../assets/cloud.js';cloudScript.defer=true;document.head.append(cloudScript);
+// Public Chance preview is local-first and requires no account.
+// Member-only cloud and customer confirmation code remain available for controlled preview.
+const memberPreview=new URLSearchParams(window.location.search).get('member')==='1';
+if(memberPreview){
+  const cloudScript=document.createElement('script');cloudScript.src='../assets/cloud.js';
+  if(C.kind==='orders')cloudScript.addEventListener('load',()=>{
+    const linkScript=document.createElement('script');linkScript.src='../assets/order-confirmations.js';
+    document.head.append(linkScript);
+  },{once:true});
+  document.head.append(cloudScript);
+}
 recalc();
 })();
