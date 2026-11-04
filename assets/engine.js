@@ -76,6 +76,25 @@ function structuredExtras(x){
   if(!Array.isArray(x._payments)||x._payments.length>200)throw Error('分期明細格式或筆數不正確');
   return {_payments:x._payments.map((p,i)=>({_id:flat(p._id||('stage-'+i)).slice(0,100),label:flat(p.label||'第 '+(i+1)+' 期').slice(0,80),planned:finiteAmount(p.planned),received:finiteAmount(p.received),due:validDate(p.due)?p.due:'',at:flat(p.at||'').slice(0,35)}))};
  }
+ if(C.kind==='filter'&&x._workOrders!==undefined){
+  if(!Array.isArray(x._workOrders)||x._workOrders.length>100)throw Error('設備派工記錄格式或筆數不正確');
+  const allowed=['已指派','執行中','已完成','已取消'];
+  const orders=x._workOrders.map((job,i)=>{
+   if(!job||typeof job!=='object'||Array.isArray(job))throw Error('第 '+(i+1)+' 筆派工格式錯誤');
+   const id=flat(job.id||'').trim().slice(0,100);
+   const date=flat(job.scheduled||'').trim();
+   const names=job.assignees;
+   if(!id||!validDate(date)||!allowed.includes(job.status))throw Error('第 '+(i+1)+' 筆派工日期、編號或狀態不正確');
+   if(!Array.isArray(names)||names.length<1||names.length>10)throw Error('第 '+(i+1)+' 筆派工需指定 1～10 位技師');
+   const assignees=names.map(n=>flat(n).trim());
+   if(assignees.some(n=>!n||n.length>40)||new Set(assignees).size!==assignees.length)throw Error('第 '+(i+1)+' 筆技師名稱有重複或異常');
+   if(flat(job.note||'').length>160)throw Error('第 '+(i+1)+' 筆派工備註超長');
+   return {id,scheduled:date,assignees,status:job.status,note:flat(job.note||'').trim().slice(0,160),
+     createdAt:flat(job.createdAt||'').slice(0,35),updatedAt:flat(job.updatedAt||'').slice(0,35)};
+  });
+  if(new Set(orders.map(j=>j.id)).size!==orders.length)throw Error('派工編號重複');
+  return {_workOrders:orders};
+ }
  if(C.kind==='inventory'&&x._movements!==undefined){
   if(!Array.isArray(x._movements)||x._movements.length>500)throw Error('庫存異動明細格式或筆數不正確');
   return {_movements:x._movements.map(m=>({at:flat(m.at||'').slice(0,35),reason:flat(m.reason||'庫存調整').slice(0,120),stockBefore:finiteAmount(m.stockBefore),stockAfter:finiteAmount(m.stockAfter),reservedBefore:finiteAmount(m.reservedBefore),reservedAfter:finiteAmount(m.reservedAfter)}))};
@@ -191,6 +210,7 @@ window.ChanceLocal=Object.freeze({
     try{
       if(C.kind==='orders'&&changes._payments){const p=structuredExtras({_payments:changes._payments})._payments;next={...next,_payments:p,paid:p.reduce((sum,v)=>sum+v.received,0)}}
       else if(C.kind==='inventory'&&changes._movements){next={...next,stock:finiteAmount(changes.stock),reserved:finiteAmount(changes.reserved),...structuredExtras({_movements:changes._movements})}}
+      else if(C.kind==='filter'&&Array.isArray(changes._workOrders)){next={...next,...structuredExtras({_workOrders:changes._workOrders})}}
       else return false;
     }catch(e){toast(e.message);return false}
     const prior=rows;rows=rows.map(r=>r._id===id?next:r);
@@ -208,6 +228,7 @@ window.ChanceLocal=Object.freeze({
   }
 });
 if(C.kind==='orders'||C.kind==='inventory'){const workflowScript=document.createElement('script');workflowScript.src='../assets/workflows.js';workflowScript.defer=true;document.head.append(workflowScript)}
+if(C.kind==='filter'){const dispatchScript=document.createElement('script');dispatchScript.src='../assets/filter-dispatch.js';dispatchScript.defer=true;document.head.append(dispatchScript)}
 const insightScript=document.createElement('script');insightScript.src='../assets/insights.js';insightScript.defer=true;document.head.append(insightScript);
 const remindersScript=document.createElement('script');remindersScript.src='../assets/reminders.js';remindersScript.defer=true;document.head.append(remindersScript);
 const cloudScript=document.createElement('script');cloudScript.src='../assets/cloud.js';cloudScript.defer=true;document.head.append(cloudScript);
