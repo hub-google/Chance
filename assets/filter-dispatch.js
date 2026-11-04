@@ -53,7 +53,7 @@ function render(){
   };
   const del=el('button','刪除','btn danger');del.type='button';
   del.onclick=()=>{
-   if(!confirm('確定刪除此設備的 '+job.scheduled+' 派工紀錄？請先備份。'))return;
+   if(!confirm('確定刪除此設備的 '+job.scheduled+' 派工紀錄'+(job.signoff?'及原有現場簽收':'')+'？這會從本機資料中移除，請先備份。'))return;
    if(store.updateStructured(device._id,{_workOrders:orders.filter(x=>x.id!==job.id)})){
     if(editing===job.id)resetForm();
     feedback('派工已刪除。');
@@ -89,7 +89,8 @@ form.addEventListener('submit',event=>{
  if(editing&&!original){feedback('派工已不存在，請重新選擇。',true);resetForm();return}
  if(!editing&&orders.length>=100){feedback('本設備已達 100 筆派工上限，請先備份整理。',true);return}
  const now=new Date().toISOString();
- const job={id:original?.id||crypto.randomUUID(),scheduled,assignees,status,note,createdAt:original?.createdAt||now,updatedAt:now};
+ if(original?.signoff&&!confirm('這筆派工已有客戶現場簽收。修改將撤銷原有簽名及簽收紀錄；如需留存請先備份 JSON。確定修改嗎？'))return;
+ const job={id:original?.id||crypto.randomUUID(),scheduled,assignees,status,note,createdAt:original?.createdAt||now,updatedAt:now,signoff:null};
  const updated=editing?orders.map(x=>x.id===editing?job:x):[...orders,job];
  if(store.updateStructured(row._id,{_workOrders:updated})){
   resetForm();feedback('派工已儲存；可於待辦行事曆匯出排程。');
