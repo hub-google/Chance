@@ -120,5 +120,80 @@ $('cloud-trial').onclick=()=>action('cloud-trial',async()=>{
  await req('/rest/v1/chance_trial_requests','POST',{user_id:u.id,app_slug:C.slug,plan_name:'付費試用意願',note:$('cloud-purpose').value.trim(),status:'new'},await getToken(),'return=minimal');
  report('已記錄試用意願；沒有扣款，也尚未開通訂閱。');
 });
+
+const account=$('cloud-user');
+const service=document.createElement('div');
+service.className='chance-support';
+service.innerHTML=[
+ '<hr class="subtle"><h3>網站內客服與問題回報</h3>',
+ '<p class="note">以網站表單送出並在此處查看處理狀態及真人回覆；不需要透過 Email 客服。請勿傳送身分證或支付卡資訊。</p>',
+ '<div class="field"><label for="chance-support-subject">問題主題</label><input id="chance-support-subject" type="text" maxlength="120" placeholder="例：資料顯示錯誤"></div>',
+ '<div class="field"><label for="chance-support-description">問題說明</label><textarea id="chance-support-description" maxlength="2000" rows="3" placeholder="請描述操作方式、錯誤文字與希望的協助。"></textarea></div>',
+ '<div class="tools"><button class="btn primary" type="button" id="chance-support-submit">送出問題</button><button class="btn" type="button" id="chance-support-refresh">重新查詢回覆</button></div>',
+ '<div id="chance-support-tickets" class="chance-support-list"></div>',
+ '<hr class="subtle"><h3>雲端備份操作紀錄</h3>',
+ '<p class="note">此處只記錄存檔類型、筆數及版次，不保存紀錄內容。由資料庫在寫入時自動產生。</p>',
+ '<div id="chance-audit-list" class="chance-support-list"></div>'
+].join('');
+account.append(service);
+const subj=$('chance-support-subject'),description=$('chance-support-description');
+const ticketArea=$('chance-support-tickets'),auditArea=$('chance-audit-list');
+const small=(tag,value,cls='')=>{const el=document.createElement(tag);el.textContent=String(value??'');if(cls)el.className=cls;return el};
+async function loadSupport(){
+ if(!session)return;
+ try{
+  const token=await getToken();
+  const tickets=await req('/rest/v1/chance_support_tickets?select=id,subject,description,status,created_at&app_slug=eq.'+encodeURIComponent(C.slug)+'&order=created_at.desc&limit=20','GET',null,token);
+  const replies=await req('/rest/v1/chance_support_replies?select=ticket_id,content,created_at&order=created_at.desc&limit=40','GET',null,token);
+  ticketArea.replaceChildren();
+  if(!tickets?.length){ticketArea.append(small('p','目前沒有客服問題紀錄。','note'));return}
+  for(const t of tickets){
+   const box=document.createElement('article');box.className='chance-support-ticket';
+   box.append(small('strong',t.subject),small('span',({open:'待處理',in_review:'處理中',answered:'已回覆',closed:'已結案'})[t.status]||t.status,'pill'));
+   box.append(small('p',t.description,'note'));
+   box.append(small('p',new Date(t.created_at).toLocaleString('zh-TW'),'note'));
+   for(const reply of (replies||[]).filter(r=>r.ticket_id===t.id)){
+    const el=document.createElement('blockquote');
+    el.append(small('strong','客服回覆　'),small('span',new Date(reply.created_at).toLocaleString('zh-TW')));
+    el.append(small('p',reply.content));
+    box.append(el);
+   }
+   ticketArea.append(box);
+  }
+ }catch(e){ticketArea.replaceChildren(small('p','客服紀錄讀取失敗：'+e.message,'note'))}
+}
+async function loadAudit(){
+ if(!session)return;
+ try{
+  const data=await req('/rest/v1/chance_audit_events?select=action,document_version,record_count,created_at&app_slug=eq.'+encodeURIComponent(C.slug)+'&order=created_at.desc&limit=20','GET',null,await getToken());
+  auditArea.replaceChildren();
+  if(!data?.length){auditArea.append(small('p','尚未有雲端寫入紀錄。','note'));return}
+  const ul=document.createElement('ul');
+  for(const entry of data){
+   ul.append(small('li',new Date(entry.created_at).toLocaleString('zh-TW')+'　'+({INSERT:'首次備份',UPDATE:'更新備份',DELETE:'刪除備份'})[entry.action]+'　'+entry.record_count+' 筆　版次 '+entry.document_version));
+  }
+  auditArea.append(ul);
+ }catch(e){auditArea.replaceChildren(small('p','操作紀錄無法讀取：'+e.message,'note'))}
+}
+$('chance-support-submit').onclick=()=>action('chance-support-submit',async()=>{
+ const subject=subj.value.trim(),body=description.value.trim();
+ if(subject.length<3||subject.length>120)throw Error('主題長度需要 3～120 字');
+ if(body.length<5||body.length>2000)throw Error('說明長度需要 5～2000 字');
+ const u=await user();
+ await req('/rest/v1/chance_support_tickets','POST',{user_id:u.id,app_slug:C.slug,subject,description:body,status:'open'},await getToken(),'return=minimal');
+ subj.value='';description.value='';
+ report('已收到問題並儲存於站內客服紀錄；請使用「重新查詢回覆」追蹤。');
+ await loadSupport();
+});
+$('chance-support-refresh').onclick=()=>action('chance-support-refresh',async()=>{
+ await Promise.all([loadSupport(),loadAudit()]);
+ report('客服與雲端操作紀錄已更新。');
+});
+const originalInspect=inspect;
+inspect=async()=>{
+ await originalInspect();
+ if(session)await Promise.all([loadSupport(),loadAudit()]);
+};
+
 render();if(session)inspect();
 })();
