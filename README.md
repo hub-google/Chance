@@ -1,5 +1,7 @@
 # Chance — 可操作微型商業產品
 
+**PRD 完成／待完成清單與測試證據**：[PRD_PROGRESS.md](PRD_PROGRESS.md)　｜　**營運後台**：[網站](https://hub-google.github.io/Chance/admin/)　｜　**管理員安全開通流程**：[database/OPERATIONS.md](database/OPERATIONS.md)
+
 從「商業機會（每日爬取）」285筆研究選出的十個 Web MVP。每個產品是自己的資料夾，內含 `index.html` 與 `PRD.md`。
 
 **正式總入口（已部署）**：https://hub-google.github.io/Chance/
