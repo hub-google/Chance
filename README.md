@@ -19,6 +19,15 @@
 | 20261028-023 | 停車場標租投報初篩 | [開啟](https://hub-google.github.io/Chance/parking-roi/) | [PRD](parking-roi/PRD.md) |
 | 20261102-018 | 自助洗衣店頂讓回本試算 | [開啟](https://hub-google.github.io/Chance/laundry-payback/) | [PRD](laundry-payback/PRD.md) |
 
+## 2026-11-04：免登入公開體驗模式
+
+- 十個工具已改成直接開啟工作台，不顯示帳號、密碼、驗證碼或註冊面板。
+- 一般訪客可立即新增、編輯、刪除、搜尋、試算、匯入／匯出 CSV、備份／還原 JSON 與列印報告。資料仍儲存於原有 localStorage，沒有刪除任何資料庫、RLS 或雲端備份。
+- 請注意：免登入模式不會自動跨裝置同步。清除瀏覽紀錄前請下載 JSON，換裝置後手動匯入。
+- 會員介面及私有雲端功能程式完整保留；僅於個別產品網址加上 `?member=1` 才載入，供內部／既有會員驗證。該網址仍需實際登入且受 Supabase RLS 保護。
+- 訂製品的客戶專屬規格確認連結依賴業者登入，公開免登入頁暫時不顯示；內部會員預覽仍保留原服務，不提供匿名建立私人確認連結。
+- `/admin/` 保留原本身分驗證與管理員白名單，不會對未登入訪客開放。
+
 ## 功能
 
 十個工具均已具備實際新增、修改、刪除、搜尋、計算、CSV 匯入與匯出、JSON 備份與還原、列印／PDF。預設資料儲存在使用者瀏覽器本機；現已增加可選的 Supabase 登入、明確操作的個人雲端備份與付費試用意願登記。**現可自行開啟版本保護的跨裝置同步；尚無多人協作或正式金流扣款**。所有定價皆屬待驗證的市場假設。
@@ -38,7 +47,7 @@
 ## 雲端功能
 
 - Supabase project `unapiwajmgqqtdkixaab` 新增 `public.chance_documents`、`public.chance_trial_requests`；RLS 僅允許資料擁有人操作。
-- 每個 App 的雲端面板自動由 `assets/engine.js` 載入 `assets/cloud.js`。
+- `assets/engine.js` 預設不載入 `assets/cloud.js`，公開入口不顯示登入表單；內部會員體驗加上 `?member=1` 才載入原有會員面板。
 - 使用者須主動確認雲端上傳／下載，本機資料不會因為登入而消失。
 - Email OTP 郵件模板及 Auth 寄信配額需在 Supabase 管理端配置與驗證。未建立正式扣款系統。
 - 請勿將 Supabase secret/service-role key 寫入網站前端。`assets/cloud.js` 使用可公開的 publishable key，所有資料存取依賴伺服器 RLS。
