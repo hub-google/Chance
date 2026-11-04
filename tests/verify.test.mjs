@@ -105,6 +105,24 @@ test('independent installment and inventory workflows compile and retain structu
  assert.match(engine,/structuredExtras\(x\)/);
  assert.match(engine,/updateStructured/);
 });
+test('filter dispatch validates technicians, schedule, status and backup data',()=>{
+ const workflow=fs.readFileSync(path.join(root,'assets/filter-dispatch.js'),'utf8');
+ new vm.Script(workflow);
+ const start=engine.indexOf('const finiteAmount='),end=engine.indexOf('function inventoryChange(',start);
+ const dateSource=engine.slice(engine.indexOf('const validDate='),engine.indexOf('const days='));
+ const validDate=new Function(dateSource+'return validDate;')();
+ const extra=new Function('C','flat','validDate',engine.slice(start,end)+'return structuredExtras;')(
+  {kind:'filter'},v=>String(v??''),validDate);
+ const input={id:'test-1',scheduled:'2030-02-14',assignees:['王技師','陳技師'],status:'已指派',note:'定期更換'};
+ const parsed=extra({_workOrders:[input]});
+ assert.equal(parsed._workOrders.length,1);
+ assert.equal(parsed._workOrders[0].assignees.length,2);
+ assert.throws(()=>extra({_workOrders:[{...input,scheduled:'2030-02-30'}]}),/日期/);
+ assert.throws(()=>extra({_workOrders:[{...input,assignees:['王技師','王技師']}]}),/技師名稱/);
+ assert.throws(()=>extra({_workOrders:[{...input,status:'不明'}]}),/狀態/);
+ assert.throws(()=>extra({_workOrders:[input,input]}),/重複/);
+ assert.match(engine,/filter-dispatch\.js/);
+});
 test('optional cloud panel JavaScript parses and uses only publishable key',()=>{
  const cloud=fs.readFileSync(path.join(root,'assets/cloud.js'),'utf8');
  new vm.Script(cloud);
