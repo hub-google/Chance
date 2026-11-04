@@ -73,7 +73,7 @@ begin
  if not found or v_record.status='revoked' then
   return jsonb_build_object('ok',false,'status','invalid');
  end if;
- if v_record.status='pending' and v_record.expires_at<=now() then
+ if v_record.expires_at<=now() then
   return jsonb_build_object('ok',false,'status','expired');
  end if;
  return jsonb_build_object('ok',true,'status',v_record.status,
@@ -87,7 +87,7 @@ create or replace function public.chance_order_confirmation_reply(
 declare v_id uuid;
 begin
  if p_token is null or p_token !~ '^[a-f0-9]{48}$'
- or p_decision not in ('confirmed','declined')
+ or p_decision is null or p_decision not in ('confirmed','declined')
  or p_feedback is null or char_length(p_feedback)>500 then
   return jsonb_build_object('ok',false,'status','invalid');
  end if;
