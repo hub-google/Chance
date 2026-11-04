@@ -8,6 +8,7 @@ on:
       - 'tests/browser-smoke.mjs'
       - 'tests/cloud-smoke.mjs'
       - 'tests/admin-smoke.mjs'
+      - 'tests/confirmation-smoke.mjs'
       - '.github/workflows/browser-smoke.yml'
   workflow_dispatch:
 permissions:
@@ -33,3 +34,4 @@ jobs:
           node tests/browser-smoke.mjs
           node tests/cloud-smoke.mjs
           node tests/admin-smoke.mjs
+          node tests/confirmation-smoke.mjs
