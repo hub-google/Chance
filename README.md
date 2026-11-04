@@ -54,3 +54,10 @@
 
 - 使用者經手動對齊後可開啟自動同步（樂觀版本鎖；衝突時停止；僅在網頁開啟期間工作）。可自行刪除單一產品的雲端備份，不動本機紀錄。
 - [站內客服](assets/cloud.js) 已串私人 support_tickets、replies；[Playwright 會員模擬測試](tests/cloud-smoke.mjs) 已覆蓋雲端備份、自動同步、客服與刪除，但正式帳號寄信／金流仍待真人驗證。
+
+## v0.4 補充：佐證檔案與客服後台
+
+- `/admin/`：網站內客服管理後台，需在 Supabase 安全端核對已存在的 Auth 帳號後加入 `chance_admins`，一般會員不得自助取得管理權限。
+- `chance-evidence` 私人 Storage bucket：僅允許登入本人在自己路徑內上傳、下載、刪除 JPG/PNG/PDF，單檔最多 5 MiB；檔案與 cloud JSON 互不覆蓋。
+- 文件與權限分別由 `chance_evidence_files`、`chance_admins`、客服及訂閱資料表保存。詳見 `database/OPERATIONS.md`。
+- 商業化仍然缺實際付款憑證與金流商家審核、正式付款回呼驗簽、客服管理員確認、真人 Auth/附件 E2E、正式隱私法遵及安全測試。
